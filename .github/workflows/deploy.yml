@@ -29,6 +29,8 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - name: Instalar Dependências e Executar Testes
+        env:
+          JWT_SECRET: "cofrinho_ci_cd_test_secret_32_characters_long_12345"
         run: |
           echo "Instalando dependencias do backend..."
           cd backend
