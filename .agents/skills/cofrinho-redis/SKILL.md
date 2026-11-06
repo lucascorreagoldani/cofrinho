@@ -153,3 +153,4 @@ export const redis = new Redis(env.REDIS_URL, {
 - ❌ **NUNCA salve chaves sem namespace**: Chaves soltas como `session:123` geram colisão e poluição no cluster. Use sempre `cofrinho:session:123`.
 - ❌ **NUNCA salve timestamps como string ISO**: Datas como `"2026-11-06T12:00:00Z"` consomem mais memória e exigem parsing complexo. Use sempre `Date.now()`.
 - ❌ **NUNCA dê crash na aplicação se o Redis falhar**: Redis é cache e aceleração; a fonte da verdade relacional é o PostgreSQL. Trate exceções com `try/catch` e degrade com elegância.
+

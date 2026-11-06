@@ -166,3 +166,4 @@ const incidentId = await ErrorAuditor.log(error, {
 O driver `pg` retorna colunas `BIGINT` como strings JavaScript para evitar estouro de precisão acima de $2^{53} - 1$. No Cofrinho:
 - IDs e timestamps cabem confortavelmente dentro de `Number.MAX_SAFE_INTEGER` ($9 \times 10^{15}$, suficiente para IDs e timestamps até o ano 285420).
 - Converta explicitamente com `Number(row.id)` e `Number(row.registered_at)` antes de retornar à API ou validar com Zod.
+
