@@ -19,6 +19,8 @@ targets:
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         NSFaceIDUsageDescription: "O Cofrinho utiliza o Face ID para proteger seus dados financeiros e manter seu acesso seguro."
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
     scheme:

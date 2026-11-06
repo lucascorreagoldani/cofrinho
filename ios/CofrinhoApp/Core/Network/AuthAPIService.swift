@@ -81,13 +81,44 @@ public struct ProblemDetailsDTO: Codable, Sendable {
 public final class AuthAPIService: @unchecked Sendable {
     public static let shared = AuthAPIService()
 
+    private let baseURLStorageKey = "cofrinho_api_base_url"
+
+    /// Servidores predefinidos para facilitar testes e alternância entre VPS e Rede Local.
+    public static let presetServers: [(name: String, url: String)] = [
+        ("VPS Host Ryzen (Nuvem)", "http://198.89.99.42:3333"),
+        ("Mac Dev Local (Wi-Fi)", "http://192.168.0.6:3333"),
+        ("Localhost (Simulador)", "http://127.0.0.1:3333")
+    ]
+
     /// URL base da API (Porta 3333 no host conforme topologia padrão)
-    public var baseURL: URL = URL(string: "http://127.0.0.1:3333")!
+    public var baseURL: URL {
+        get {
+            if let saved = UserDefaults.standard.string(forKey: baseURLStorageKey),
+               let url = URL(string: saved) {
+                return url
+            }
+            #if targetEnvironment(simulator)
+            return URL(string: "http://127.0.0.1:3333")!
+            #else
+            // No iPhone físico, o IP da máquina do desenvolvedor na Wi-Fi é o padrão mais direto
+            return URL(string: "http://192.168.0.6:3333")!
+            #endif
+        }
+        set {
+            UserDefaults.standard.set(newValue.absoluteString, forKey: baseURLStorageKey)
+        }
+    }
 
     private let session: URLSession
 
     public init(session: URLSession = .shared) {
         self.session = session
+    }
+
+    public func setBaseURLString(_ urlString: String) {
+        if let url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            self.baseURL = url
+        }
     }
 
     // MARK: - Autenticação
@@ -97,6 +128,7 @@ public final class AuthAPIService: @unchecked Sendable {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 10
 
         let payload = [
             "username": username,
@@ -113,6 +145,7 @@ public final class AuthAPIService: @unchecked Sendable {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 10
 
         let payload: [String: Any] = [
             "login": login,
@@ -129,6 +162,7 @@ public final class AuthAPIService: @unchecked Sendable {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
 
         let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
@@ -143,6 +177,7 @@ public final class AuthAPIService: @unchecked Sendable {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
 
         return try await performRequest(request)
     }
@@ -152,6 +187,7 @@ public final class AuthAPIService: @unchecked Sendable {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
 
         return try await performRequest(request)
     }
@@ -162,6 +198,7 @@ public final class AuthAPIService: @unchecked Sendable {
         request.httpMethod = "PATCH"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
 
         var payload: [String: Any] = [:]
         if let fastLogin { payload["fast_login"] = fastLogin }
@@ -202,8 +239,10 @@ public final class AuthAPIService: @unchecked Sendable {
         } catch let err as any AppErrorProtocol {
             throw err
         } catch let urlErr as URLError {
-            if urlErr.code == .notConnectedToInternet || urlErr.code == .cannotConnectToHost {
+            if urlErr.code == .notConnectedToInternet {
                 throw NetworkError.noConnection
+            } else if urlErr.code == .cannotConnectToHost || urlErr.code == .networkConnectionLost || urlErr.code == .cannotFindHost {
+                throw NetworkError.serverUnreachable(host: baseURL.host ?? baseURL.absoluteString)
             } else if urlErr.code == .timedOut {
                 throw NetworkError.timeout
             } else {

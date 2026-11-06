@@ -4,6 +4,7 @@ import SwiftUI
 public struct ProfileView: View {
     @Bindable var viewModel: AuthViewModel
     @State private var showLogoutConfirmation = false
+    @State private var showServerConfig = false
 
     public init(viewModel: AuthViewModel) {
         self.viewModel = viewModel
@@ -21,12 +22,18 @@ public struct ProfileView: View {
                 // MARK: - Segurança e Biometria
                 securitySection
 
+                // MARK: - Conexão e Rede
+                networkSection
+
                 // MARK: - Ações de Sessão
                 sessionActionsSection
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Meu Perfil")
             .handleAnyAppError($viewModel.activeError)
+            .sheet(isPresented: $showServerConfig) {
+                ServerConfigSheet()
+            }
             .confirmationDialog(
                 "Deseja realmente sair da sua conta?",
                 isPresented: $showLogoutConfirmation,
@@ -159,6 +166,34 @@ public struct ProfileView: View {
                 } icon: {
                     Image(systemName: "lock.shield.fill")
                         .foregroundStyle(Color.green)
+                }
+            }
+        }
+    }
+
+    private var networkSection: some View {
+        Section("Conexão & Nuvem") {
+            Button {
+                showServerConfig = true
+            } label: {
+                HStack {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Servidor da API")
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                            Text(AuthAPIService.shared.baseURL.absoluteString)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } icon: {
+                        Image(systemName: "network")
+                            .foregroundStyle(Color.orange)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.bold())
+                        .foregroundStyle(.tertiary)
                 }
             }
         }

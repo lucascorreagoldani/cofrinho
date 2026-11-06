@@ -5,6 +5,7 @@ public enum NetworkError: AppErrorProtocol {
     case invalidURL(url: String)
     case noConnection
     case timeout
+    case serverUnreachable(host: String)
     case serverError(statusCode: Int, message: String?)
     case decodingFailed(reason: String)
     case unauthorized
@@ -15,6 +16,7 @@ public enum NetworkError: AppErrorProtocol {
         case .invalidURL: return "NET_001"
         case .noConnection: return "NET_002"
         case .timeout: return "NET_003"
+        case .serverUnreachable: return "NET_005"
         case .serverError(let code, _): return "NET_SRV_\(code)"
         case .decodingFailed: return "NET_004"
         case .unauthorized: return "NET_401"
@@ -27,9 +29,11 @@ public enum NetworkError: AppErrorProtocol {
         case .invalidURL:
             return "O endereço de rede solicitado é inválido."
         case .noConnection:
-            return "Você está sem conexão com a internet."
+            return "Seu dispositivo está sem conexão com a internet."
         case .timeout:
             return "O tempo de resposta do servidor expirou."
+        case .serverUnreachable(let host):
+            return "O servidor do Cofrinho está inacessível no momento (\(host))."
         case .serverError(let code, let msg):
             if let msg, !msg.isEmpty {
                 return msg
@@ -47,7 +51,9 @@ public enum NetworkError: AppErrorProtocol {
     public var recoverySuggestion: String? {
         switch self {
         case .noConnection:
-            return "Verifique se o Wi-Fi ou os dados móveis estão ativos e tente novamente."
+            return "Verifique se o Wi-Fi ou seus dados móveis (4G/5G) estão ativos e tente novamente."
+        case .serverUnreachable:
+            return "O servidor backend pode estar offline ou inacessível nesta rede. Você pode tentar novamente ou alternar o servidor nas configurações de rede."
         case .timeout:
             return "Sua conexão pode estar lenta. Aguarde alguns instantes e tente novamente."
         case .unauthorized:
@@ -67,6 +73,8 @@ public enum NetworkError: AppErrorProtocol {
             return "[NET_002] Conexão indisponível (URLError.notConnectedToInternet)"
         case .timeout:
             return "[NET_003] Timeout de requisição"
+        case .serverUnreachable(let host):
+            return "[NET_005] Servidor inacessível / conexão recusada: \(host)"
         case .serverError(let code, let msg):
             return "[NET_SRV_\(code)] Resposta do servidor HTTP \(code): \(msg ?? "Sem mensagem")"
         case .decodingFailed(let reason):
@@ -78,4 +86,3 @@ public enum NetworkError: AppErrorProtocol {
         }
     }
 }
-

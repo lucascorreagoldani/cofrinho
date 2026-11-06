@@ -249,6 +249,45 @@ public final class AuthViewModel {
         }
     }
 
+    public func loginOfflineMode() {
+        let chosenName = usernameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? (loginInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "lucas" : loginInput)
+            : usernameInput
+
+        let chosenEmail = emailInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "\(chosenName)@cofrinho.app"
+            : emailInput
+
+        let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+
+        let fallbackUser = UserProfileDTO(
+            id: 1,
+            username: chosenName,
+            email: chosenEmail,
+            firstIp: "127.0.0.1",
+            lastIp: "127.0.0.1",
+            firstLogin: nowMs,
+            lastLogin: nowMs,
+            registeredAt: nowMs
+        )
+
+        self.currentUser = fallbackUser
+        self.currentPreferences = UserPreferencesDTO(
+            userId: 1,
+            fastLogin: keepLoggedIn,
+            verification: false,
+            updatedAt: nowMs
+        )
+
+        if keepLoggedIn {
+            UserDefaults.standard.set(true, forKey: fastLoginKey)
+        }
+
+        self.activeError = nil
+        self.isAuthenticated = true
+        AppLogger.shared.info("Entrando no Modo Offline com dados locais para \(chosenName)", category: .app)
+    }
+
     public func logout() async {
         isLoading = true
         defer { isLoading = false }
