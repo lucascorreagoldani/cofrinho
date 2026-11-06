@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		01AB8D39219004C9F6F0785D /* CofrinhoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F81FC403314BD30C20D1BC /* CofrinhoApp.swift */; };
-		02638B2451B7CC99889F9A01 /* ServerConfigSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0254801E5C5FF66BEAD41718 /* ServerConfigSheet.swift */; };
 		1C3F10BF94E3B68712A45A32 /* AppErrorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 811079180079BD47AD61FEF7 /* AppErrorProtocol.swift */; };
 		297066F55DF106707D4414B6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42988F2B01589D33F1523016 /* ContentView.swift */; };
 		4A4707C5D12767E73D5DE726 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 86A95467C779F02131288CB5 /* Assets.xcassets */; };
@@ -43,7 +42,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		0254801E5C5FF66BEAD41718 /* ServerConfigSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConfigSheet.swift; sourceTree = "<group>"; };
 		3350B94409268186B89BBE87 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		423194BBE6698E54893E3638 /* NetworkError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkError.swift; sourceTree = "<group>"; };
 		42988F2B01589D33F1523016 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -157,7 +155,6 @@
 			children = (
 				4E3EEAABEE308E25AA04874A /* AuthViewModel.swift */,
 				3350B94409268186B89BBE87 /* LoginView.swift */,
-				0254801E5C5FF66BEAD41718 /* ServerConfigSheet.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -326,7 +323,6 @@
 				B158F74A0B0A34C221A74B7E /* NetworkError.swift in Sources */,
 				6706CE7D40EF27C354D6C82E /* ProfileView.swift in Sources */,
 				B0DA2D3DDBA010ADFFF979D3 /* SecurityError.swift in Sources */,
-				02638B2451B7CC99889F9A01 /* ServerConfigSheet.swift in Sources */,
 				869E6CE9FC96A01A493C53BD /* ValidationError.swift in Sources */,
 				ACA5D6F01D773B88243D3D8D /* View+ErrorAlert.swift in Sources */,
 			);
