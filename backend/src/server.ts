@@ -22,8 +22,12 @@ import {
 import { ErrorAuditor } from './shared/errors/ErrorAuditor.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
+import { categoriesRoutes } from './modules/categories/categories.routes.js';
+import { accountsRoutes } from './modules/accounts/accounts.routes.js';
+import { transactionsRoutes } from './modules/transactions/transactions.routes.js';
 import { checkDatabaseConnection, dbPool } from './database/postgres.js';
 import { checkRedisConnection, redis } from './database/redis.js';
+import { initializeDatabase } from './database/init.js';
 
 export async function buildApp() {
   const app = fastify({
@@ -158,12 +162,22 @@ export async function buildApp() {
   /* 7. Registro de Rotas Versionadas (/v1 - Regra 5) */
   await app.register(authRoutes, { prefix: '/v1/auth' });
   await app.register(usersRoutes, { prefix: '/v1/users' });
+  await app.register(categoriesRoutes, { prefix: '/v1/categories' });
+  await app.register(accountsRoutes, { prefix: '/v1/accounts' });
+  await app.register(transactionsRoutes, { prefix: '/v1/transactions' });
 
   return app;
 }
 
 /* 8. Inicialização do Servidor */
 async function start() {
+  try {
+    /* Garante idempotência de esquemas no PostgreSQL */
+    await initializeDatabase();
+  } catch (err) {
+    console.error('Aviso: Falha ao sincronizar esquema no startup:', (err as Error).message);
+  }
+
   const app = await buildApp();
 
   try {

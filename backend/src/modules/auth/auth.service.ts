@@ -4,6 +4,7 @@ import { redis } from '../../database/redis.js';
 import { ConflictError, UnauthorizedError } from '../../shared/errors/AppError.js';
 import { z } from 'zod';
 import { registerBodySchema, loginBodySchema } from './auth.schemas.js';
+import { CANONICAL_CATEGORIES, CANONICAL_ACCOUNTS } from '../../shared/constants/defaults.js';
 
 export class AuthService {
   async register(data: z.infer<typeof registerBodySchema>, clientIp: string) {
@@ -53,6 +54,36 @@ export class AuthService {
         `INSERT INTO users_preferences (user_id, fast_login, verification, updated_at) VALUES ($1, true, false, $2)`,
         [numericUserId, nowTimestamp]
       );
+
+      /* 5. Inicializa as 6 categorias canônicas para o novo usuário */
+      for (const cat of CANONICAL_CATEGORIES) {
+        await client.query(
+          `INSERT INTO categories (user_id, name, icon, color, is_default, status, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, true, 'active', $5, $5)
+           ON CONFLICT (user_id, name) DO NOTHING`,
+          [numericUserId, cat.name, cat.icon, cat.color, nowTimestamp]
+        );
+      }
+
+      /* 6. Inicializa as contas canônicas para o novo usuário */
+      for (const acc of CANONICAL_ACCOUNTS) {
+        await client.query(
+          `INSERT INTO accounts (user_id, name, type, icon, color, allows_installments, closing_day, due_day, status, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9, $9)
+           ON CONFLICT (user_id, name) DO NOTHING`,
+          [
+            numericUserId,
+            acc.name,
+            acc.type,
+            acc.icon,
+            acc.color,
+            acc.allows_installments,
+            acc.closing_day || null,
+            acc.due_day || null,
+            nowTimestamp,
+          ]
+        );
+      }
 
       await client.query('COMMIT');
 

@@ -3,7 +3,7 @@ import SwiftUI
 /// Barra de navegação inferior (Tab Bar) principal do Cofrinho.
 public struct MainTabView: View {
     @Bindable var viewModel: AuthViewModel
-    @State private var selectedTab: TabItem = .profile
+    @State private var selectedTab: TabItem = .home
 
     public enum TabItem: Hashable {
         case home
@@ -18,49 +18,23 @@ public struct MainTabView: View {
 
     public var body: some View {
         TabView(selection: $selectedTab) {
-            // MARK: - Aba Início (Placeholder para o Dashboard)
+            // MARK: - Aba Início (Cadastro Rápido de Novo Gasto)
             NavigationStack {
-                VStack(spacing: 16) {
-                    Image(systemName: "house.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(Color.pink)
-                    Text("Visão Geral")
-                        .font(.title2.bold())
-                    Text("Em breve: Dashboard com saldo e resumos rápidos.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                }
-                .navigationTitle("Início")
+                NewExpenseView(token: viewModel.token ?? "")
             }
             .tabItem {
-                Label("Início", systemImage: "house.fill")
+                Label("Novo Gasto", systemImage: "plus.circle.fill")
             }
             .tag(TabItem.home)
 
-            // MARK: - Aba Extrato (Placeholder para Transações)
-            NavigationStack {
-                VStack(spacing: 16) {
-                    Image(systemName: "list.bullet.rectangle.portrait.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(Color.orange)
-                    Text("Transações")
-                        .font(.title2.bold())
-                    Text("Em breve: Extrato completo de receitas e despesas.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
+            // MARK: - Aba Extrato (Lista Completa de Gastos, Filtro e Parcelas)
+            TransactionsListView(token: viewModel.token ?? "")
+                .tabItem {
+                    Label("Extrato", systemImage: "list.bullet.rectangle.portrait.fill")
                 }
-                .navigationTitle("Extrato")
-            }
-            .tabItem {
-                Label("Extrato", systemImage: "list.bullet.rectangle.portrait.fill")
-            }
-            .tag(TabItem.transactions)
+                .tag(TabItem.transactions)
 
-            // MARK: - Aba Metas (Placeholder para Cofrinhos)
+            // MARK: - Aba Metas (Cofrinhos Inteligentes)
             NavigationStack {
                 VStack(spacing: 16) {
                     Image(systemName: "target")
@@ -81,18 +55,17 @@ public struct MainTabView: View {
             }
             .tag(TabItem.goals)
 
-            // MARK: - Aba Perfil (Implementada)
+            // MARK: - Aba Perfil
             ProfileView(viewModel: viewModel)
                 .tabItem {
                     Label("Perfil", systemImage: "person.crop.circle.fill")
                 }
                 .tag(TabItem.profile)
         }
-        .tint(Color.orange)
+        .tint(Color.blue)
     }
 }
 
 #Preview {
     MainTabView(viewModel: AuthViewModel())
 }
-

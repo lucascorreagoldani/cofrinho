@@ -75,3 +75,65 @@ CREATE TABLE IF NOT EXISTS log_errors (
 CREATE INDEX IF NOT EXISTS idx_log_errors_incident ON log_errors(incident_id);
 CREATE INDEX IF NOT EXISTS idx_log_errors_timestamp ON log_errors(timestamp);
 CREATE INDEX IF NOT EXISTS idx_log_errors_user_id ON log_errors(user_id);
+
+-- 5. Tabela CATEGORIES (Categorias de Gastos e Receitas por Usuário)
+CREATE TABLE IF NOT EXISTS categories (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    icon VARCHAR(60) NOT NULL DEFAULT 'tag.fill',
+    color VARCHAR(20) NOT NULL DEFAULT '#FF9500',
+    is_default BOOLEAN NOT NULL DEFAULT false,
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'hidden', 'deleted')),
+    created_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint,
+    updated_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint,
+    CONSTRAINT uq_categories_user_name UNIQUE (user_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_categories_user_status ON categories(user_id, status);
+
+-- 6. Tabela ACCOUNTS (Contas, Cartões, Bancos e Carteiras)
+CREATE TABLE IF NOT EXISTS accounts (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    type VARCHAR(30) NOT NULL CHECK (type IN ('credit_card', 'bank_account', 'wallet', 'pix', 'cash')),
+    icon VARCHAR(60) NOT NULL DEFAULT 'creditcard.fill',
+    color VARCHAR(20) NOT NULL DEFAULT '#007AFF',
+    allows_installments BOOLEAN NOT NULL DEFAULT false,
+    closing_day SMALLINT CHECK (closing_day BETWEEN 1 AND 31),
+    due_day SMALLINT CHECK (due_day BETWEEN 1 AND 31),
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'hidden', 'deleted')),
+    created_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint,
+    updated_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint,
+    CONSTRAINT uq_accounts_user_name UNIQUE (user_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_accounts_user_status ON accounts(user_id, status);
+
+-- 7. Tabela TRANSACTIONS (Gastos e Receitas com Suporte a Parcelamento)
+CREATE TABLE IF NOT EXISTS transactions (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    category_id BIGINT NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
+    account_id BIGINT NOT NULL REFERENCES accounts(id) ON DELETE RESTRICT,
+    type VARCHAR(20) NOT NULL DEFAULT 'expense' CHECK (type IN ('expense', 'income')),
+    amount NUMERIC(15, 2) NOT NULL CHECK (amount > 0),
+    description VARCHAR(255) NOT NULL,
+    date BIGINT NOT NULL,
+    has_time BOOLEAN NOT NULL DEFAULT false,
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'hidden', 'deleted')),
+    is_installment BOOLEAN NOT NULL DEFAULT false,
+    installment_number SMALLINT,
+    total_installments SMALLINT,
+    installment_group_id UUID,
+    created_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint,
+    updated_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint
+);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_user_status ON transactions(user_id, status);
+CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_group ON transactions(installment_group_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_description_search ON transactions(user_id, description);

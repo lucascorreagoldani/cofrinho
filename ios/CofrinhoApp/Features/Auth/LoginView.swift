@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Tela nativa de Login e Registro do Cofrinho utilizando formulário nativo do iOS (Form)
-/// com resposta de clique instantânea (0 delay), navegação rápida de teclado (setas cima/baixo)
-/// e suporte completo a preenchimento automático e senhas fortes do iOS Keychain.
+/// Tela moderna de Login e Registro do Cofrinho conectada exclusivamente à VPS de produção.
+/// Desenvolvida para máxima velocidade de resposta ao toque (0 delay), navegação rápida de formulário
+/// com setas cima/baixo e suporte nativo ao preenchimento automático do iOS Keychain.
 public struct LoginView: View {
     @Bindable var viewModel: AuthViewModel
 
@@ -23,52 +23,54 @@ public struct LoginView: View {
 
     public var body: some View {
         NavigationStack {
-            Form {
-                // MARK: - Cabeçalho & Logo do App
-                Section {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // MARK: - Cabeçalho & Logo do App
                     headerSection
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, 10)
-                        .padding(.bottom, 6)
-                }
+                        .padding(.top, 12)
 
-                // MARK: - Campos do Formulário
-                if viewModel.isRegistering {
-                    registrationFieldsSection
-                } else {
-                    loginFieldsSection
-                }
+                    // MARK: - Formulário de Entrada
+                    VStack(spacing: 16) {
+                        if viewModel.isRegistering {
+                            registrationFields
+                        } else {
+                            loginFields
+                        }
 
-                // MARK: - Preferência de Sessão
-                Section {
-                    Toggle(isOn: $viewModel.keepLoggedIn) {
-                        Text(viewModel.isRegistering ? "Manter-se conectado após o cadastro" : "Manter-se conectado neste iPhone")
-                            .font(.subheadline)
+                        // Checkbox Manter-se conectado
+                        Toggle(isOn: $viewModel.keepLoggedIn) {
+                            HStack(spacing: 8) {
+                                Image(systemName: viewModel.keepLoggedIn ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(viewModel.keepLoggedIn ? Color.green : Color.secondary)
+                                    .font(.system(size: 18))
+
+                                Text(viewModel.isRegistering ? "Manter-se conectado após o cadastro" : "Manter-se conectado neste iPhone")
+                                    .font(.footnote)
+                                    .foregroundStyle(.primary)
+                            }
+                        }
+                        .toggleStyle(.button)
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 4)
+
+                        // Botão Principal de Ação
+                        actionButton
+
+                        // Alternar entre Login e Cadastro
+                        switchModeSection
                     }
-                    .tint(.orange)
                 }
-
-                // MARK: - Ação Principal & Alternância
-                Section {
-                    actionButton
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-
-                    switchModeSection
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.top, 8)
-                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 36)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .background(Color(uiColor: .systemGroupedBackground))
+            .scrollDismissesKeyboard(.immediately)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                // MARK: - Barra de Ferramentas de Formulário do Teclado (Setas Cima / Baixo e Concluído)
-                ToolbarItemGroup(placement: .keyboard) {
-                    HStack(spacing: 16) {
+                // MARK: - Barra de Ferramentas de Formulário no Teclado
+                ToolbarItem(placement: .keyboard) {
+                    HStack {
                         Button {
                             moveToPreviousField()
                         } label: {
@@ -84,15 +86,15 @@ public struct LoginView: View {
                                 .font(.system(size: 16, weight: .semibold))
                         }
                         .disabled(!canMoveToNextField)
-                    }
 
-                    Spacer()
+                        Spacer()
 
-                    Button("OK") {
-                        focusedField = nil
+                        Button("OK") {
+                            focusedField = nil
+                        }
+                        .font(.headline)
+                        .foregroundStyle(Color.orange)
                     }
-                    .font(.headline)
-                    .foregroundStyle(Color.orange)
                 }
             }
             // MARK: - Tratamento Centralizado de Erros (RFC 9457 & AppError)
@@ -121,7 +123,7 @@ public struct LoginView: View {
     // MARK: - Seções Visuais
 
     private var headerSection: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             ZStack {
                 Circle()
                     .fill(LinearGradient(
@@ -129,15 +131,15 @@ public struct LoginView: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ))
-                    .frame(width: 80, height: 80)
+                    .frame(width: 82, height: 82)
                     .shadow(color: Color.pink.opacity(0.25), radius: 8, x: 0, y: 4)
 
                 Image(systemName: "banknote.fill")
-                    .font(.system(size: 34, weight: .bold))
+                    .font(.system(size: 36, weight: .bold))
                     .foregroundStyle(.white)
             }
 
-            VStack(spacing: 3) {
+            VStack(spacing: 4) {
                 Text("Cofrinho")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundStyle(.primary)
@@ -149,8 +151,8 @@ public struct LoginView: View {
         }
     }
 
-    private var loginFieldsSection: some View {
-        Section {
+    private var loginFields: some View {
+        VStack(spacing: 12) {
             // Campo 1: Usuário ou E-mail
             HStack(spacing: 12) {
                 Image(systemName: "person.fill")
@@ -167,6 +169,14 @@ public struct LoginView: View {
                         focusedField = .password
                     }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(.rect(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(focusedField == .login ? Color.orange.opacity(0.7) : Color.clear, lineWidth: 1.5)
+            )
 
             // Campo 2: Senha
             HStack(spacing: 12) {
@@ -185,11 +195,19 @@ public struct LoginView: View {
                         }
                     }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(.rect(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(focusedField == .password ? Color.orange.opacity(0.7) : Color.clear, lineWidth: 1.5)
+            )
         }
     }
 
-    private var registrationFieldsSection: some View {
-        Section {
+    private var registrationFields: some View {
+        VStack(spacing: 12) {
             // Campo 1: Nome de Usuário
             HStack(spacing: 12) {
                 Image(systemName: "at")
@@ -206,8 +224,16 @@ public struct LoginView: View {
                         focusedField = .email
                     }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(.rect(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(focusedField == .username ? Color.orange.opacity(0.7) : Color.clear, lineWidth: 1.5)
+            )
 
-            // Campo 2: E-mail
+            // Campo 2: E-mail (textContentType sem keyboardType conflitante para evitar bug de predição do iOS)
             HStack(spacing: 12) {
                 Image(systemName: "envelope.fill")
                     .foregroundStyle(focusedField == .email ? Color.orange : Color.secondary)
@@ -216,7 +242,6 @@ public struct LoginView: View {
                 TextField("Seu melhor e-mail", text: $viewModel.emailInput)
                     .focused($focusedField, equals: .email)
                     .textContentType(.emailAddress)
-                    .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .submitLabel(.next)
@@ -224,6 +249,14 @@ public struct LoginView: View {
                         focusedField = .regPassword
                     }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(.rect(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(focusedField == .email ? Color.orange.opacity(0.7) : Color.clear, lineWidth: 1.5)
+            )
 
             // Campo 3: Senha
             HStack(spacing: 12) {
@@ -239,6 +272,14 @@ public struct LoginView: View {
                         focusedField = .confirmPassword
                     }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(.rect(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(focusedField == .regPassword ? Color.orange.opacity(0.7) : Color.clear, lineWidth: 1.5)
+            )
 
             // Campo 4: Confirmação de Senha
             HStack(spacing: 12) {
@@ -257,10 +298,20 @@ public struct LoginView: View {
                         }
                     }
             }
-        } footer: {
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(.rect(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(focusedField == .confirmPassword ? Color.orange.opacity(0.7) : Color.clear, lineWidth: 1.5)
+            )
+
             Text("A senha deve conter no mínimo 8 caracteres, uma letra maiúscula e um número.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
         }
     }
 
@@ -289,7 +340,7 @@ public struct LoginView: View {
                 Spacer()
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 50)
+            .frame(height: 52)
             .background(LinearGradient(
                 colors: viewModel.isRegistering ? [Color.green, Color.teal] : [Color.pink, Color.orange],
                 startPoint: .leading,
@@ -300,6 +351,7 @@ public struct LoginView: View {
             .shadow(color: (viewModel.isRegistering ? Color.teal : Color.orange).opacity(0.3), radius: 6, x: 0, y: 3)
         }
         .disabled(viewModel.isLoading)
+        .padding(.top, 4)
     }
 
     private var switchModeSection: some View {
@@ -318,7 +370,7 @@ public struct LoginView: View {
                     .font(.footnote.bold())
                     .foregroundStyle(Color.orange)
             }
-            .padding(.vertical, 6)
+            .padding(.vertical, 8)
         }
     }
 

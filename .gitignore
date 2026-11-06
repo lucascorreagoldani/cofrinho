@@ -65,9 +65,10 @@ yarn-debug.log*
 yarn-error.log*
 
 # Docker Data & Volumes
-data/
+/data/
 backend/data/
 postgres_data/
 redis_data/
+!ios/CofrinhoApp/Data/
 
 

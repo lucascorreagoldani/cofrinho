@@ -8,27 +8,38 @@
 
 /* Begin PBXBuildFile section */
 		01AB8D39219004C9F6F0785D /* CofrinhoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F81FC403314BD30C20D1BC /* CofrinhoApp.swift */; };
+		048AD68AB822E0459F55A821 /* AccountModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEC3D8795E7FACF9E01282B5 /* AccountModel.swift */; };
+		11BA7D0331C8E5C1B65DEC6E /* CreateAccountSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FC3B292662892FD1CCB755 /* CreateAccountSheetView.swift */; };
 		1C3F10BF94E3B68712A45A32 /* AppErrorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 811079180079BD47AD61FEF7 /* AppErrorProtocol.swift */; };
+		1CF7D235EB6A3E6499EB2227 /* CategoriesAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14B05F2E3007525C1AC18809 /* CategoriesAPIService.swift */; };
+		27544581303823BBBDCD6873 /* AccountsAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FC786F196E75FF5FB29EC76 /* AccountsAPIService.swift */; };
 		297066F55DF106707D4414B6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42988F2B01589D33F1523016 /* ContentView.swift */; };
+		334C0532C8293A403B02B0DD /* CreateCategorySheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CCED32F0A41C236DF1BF35A /* CreateCategorySheetView.swift */; };
+		46D6B058020523D1C93AFE9F /* NewExpenseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72FAD0764A3DA8E5C2F86F7F /* NewExpenseView.swift */; };
 		4A4707C5D12767E73D5DE726 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 86A95467C779F02131288CB5 /* Assets.xcassets */; };
 		5856E6B12A7E43D28DC9ADEB /* AuthAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 567FC113E998EC5BB944735E /* AuthAPIService.swift */; };
 		6706CE7D40EF27C354D6C82E /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA9B92BD256FBD451CAEAFE5 /* ProfileView.swift */; };
 		67CE5A9437F9427261FA6FE6 /* BiometryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD69F79EB7374E61F90D22F4 /* BiometryService.swift */; };
 		6E123339AEEFDA877A8BDB77 /* AuthError.swift in Sources */ = {isa = PBXBuildFile; fileRef = C63CCE2B3D980F1941D41915 /* AuthError.swift */; };
 		78F67535C2AC2FD8BB840015 /* AuthErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 978ACB763B7CF9A30BE86104 /* AuthErrorTests.swift */; };
+		7D0D8AE914BE1CF2F5526FF3 /* TransactionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5ABE987AAC4E0D11AC1FD3 /* TransactionModel.swift */; };
 		869E6CE9FC96A01A493C53BD /* ValidationError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A84FC8B1914A7206DB3F7A3 /* ValidationError.swift */; };
 		8873E1945EF4FB68D8219DA4 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBEF16001F57EE66D7E56CF1 /* KeychainHelper.swift */; };
 		8A25BDF7F9E67B6604EA1B9E /* DatabaseError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5410D93F51B84FB656AE534F /* DatabaseError.swift */; };
+		94BD96C7EADA7D04E4263A43 /* NewExpenseViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4B137D478046A743562212D /* NewExpenseViewModel.swift */; };
 		ABF433990EE7D63CCEB89E05 /* ErrorAndLoggingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 871D93BE9BE65017AF3990CD /* ErrorAndLoggingTests.swift */; };
 		ACA5D6F01D773B88243D3D8D /* View+ErrorAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79076718ACF1003795F0F8A6 /* View+ErrorAlert.swift */; };
 		AE6E27370D79B866F33E6454 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D28CB716BE1495F0D7742A07 /* MainTabView.swift */; };
 		B0DA2D3DDBA010ADFFF979D3 /* SecurityError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5516B56B2C52B20BEBE30004 /* SecurityError.swift */; };
 		B158F74A0B0A34C221A74B7E /* NetworkError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 423194BBE6698E54893E3638 /* NetworkError.swift */; };
+		C278974BBDB3333F36192EC8 /* TransactionsAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 232A7744246B43CF19F01D9D /* TransactionsAPIService.swift */; };
 		C702BD3296A5AF3C88CCB3CE /* LogCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AB2BB6CC7B86E417119ED77 /* LogCategory.swift */; };
 		D7607126BBCDADBCD6F860E8 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3350B94409268186B89BBE87 /* LoginView.swift */; };
 		E05EC1964B3E623F96C4CFC7 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E5EBB644BAA4E87B5BFC2C /* AppLogger.swift */; };
+		F25447BA1D059109E7584115 /* TransactionsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9185A2C53EE8B6FCAFE9FDA5 /* TransactionsListView.swift */; };
 		F894ADEC9B6CDDFE98FB6012 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E3EEAABEE308E25AA04874A /* AuthViewModel.swift */; };
 		FAB16817C6A9DD53CA53B936 /* LogServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8808C68DDB8BEB5C6DA07BD /* LogServiceProtocol.swift */; };
+		FB9F3F8303BF967121B15889 /* CategoryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5722952A562391B68D4E1160 /* CategoryModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -42,30 +53,41 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		14B05F2E3007525C1AC18809 /* CategoriesAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoriesAPIService.swift; sourceTree = "<group>"; };
+		1FC786F196E75FF5FB29EC76 /* AccountsAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsAPIService.swift; sourceTree = "<group>"; };
+		232A7744246B43CF19F01D9D /* TransactionsAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionsAPIService.swift; sourceTree = "<group>"; };
 		3350B94409268186B89BBE87 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		423194BBE6698E54893E3638 /* NetworkError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkError.swift; sourceTree = "<group>"; };
 		42988F2B01589D33F1523016 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		44E5EBB644BAA4E87B5BFC2C /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
+		4CCED32F0A41C236DF1BF35A /* CreateCategorySheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCategorySheetView.swift; sourceTree = "<group>"; };
 		4E3EEAABEE308E25AA04874A /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		5410D93F51B84FB656AE534F /* DatabaseError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseError.swift; sourceTree = "<group>"; };
 		5516B56B2C52B20BEBE30004 /* SecurityError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityError.swift; sourceTree = "<group>"; };
 		567FC113E998EC5BB944735E /* AuthAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthAPIService.swift; sourceTree = "<group>"; };
+		5722952A562391B68D4E1160 /* CategoryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryModel.swift; sourceTree = "<group>"; };
 		5AB2BB6CC7B86E417119ED77 /* LogCategory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogCategory.swift; sourceTree = "<group>"; };
+		72FAD0764A3DA8E5C2F86F7F /* NewExpenseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewExpenseView.swift; sourceTree = "<group>"; };
 		79076718ACF1003795F0F8A6 /* View+ErrorAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+ErrorAlert.swift"; sourceTree = "<group>"; };
+		79FC3B292662892FD1CCB755 /* CreateAccountSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateAccountSheetView.swift; sourceTree = "<group>"; };
 		7A84FC8B1914A7206DB3F7A3 /* ValidationError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidationError.swift; sourceTree = "<group>"; };
 		811079180079BD47AD61FEF7 /* AppErrorProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppErrorProtocol.swift; sourceTree = "<group>"; };
 		86A95467C779F02131288CB5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		871D93BE9BE65017AF3990CD /* ErrorAndLoggingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorAndLoggingTests.swift; sourceTree = "<group>"; };
 		87F827B1B4B91FC594423015 /* CofrinhoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CofrinhoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9185A2C53EE8B6FCAFE9FDA5 /* TransactionsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionsListView.swift; sourceTree = "<group>"; };
 		92CCA8981E0D4050DBD21296 /* Cofrinho.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cofrinho.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		978ACB763B7CF9A30BE86104 /* AuthErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthErrorTests.swift; sourceTree = "<group>"; };
+		B4B137D478046A743562212D /* NewExpenseViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewExpenseViewModel.swift; sourceTree = "<group>"; };
 		BA9B92BD256FBD451CAEAFE5 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		C63CCE2B3D980F1941D41915 /* AuthError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthError.swift; sourceTree = "<group>"; };
+		CC5ABE987AAC4E0D11AC1FD3 /* TransactionModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionModel.swift; sourceTree = "<group>"; };
 		D28CB716BE1495F0D7742A07 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		D6BCA81EA531DE82480CC13C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		D8808C68DDB8BEB5C6DA07BD /* LogServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogServiceProtocol.swift; sourceTree = "<group>"; };
 		DD69F79EB7374E61F90D22F4 /* BiometryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometryService.swift; sourceTree = "<group>"; };
 		EBEF16001F57EE66D7E56CF1 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		EEC3D8795E7FACF9E01282B5 /* AccountModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountModel.swift; sourceTree = "<group>"; };
 		F8F81FC403314BD30C20D1BC /* CofrinhoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CofrinhoApp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -84,6 +106,7 @@
 				5E89ECF72BE192D146489793 /* Auth */,
 				117CA04B999255DCB3B60D8D /* Main */,
 				E73F51EA9742F42B1B9172FF /* Profile */,
+				913D6A79D5ECC8BA32159A41 /* Transactions */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -91,7 +114,10 @@
 		275FC6BF01E650C86EE86B3D /* Network */ = {
 			isa = PBXGroup;
 			children = (
+				1FC786F196E75FF5FB29EC76 /* AccountsAPIService.swift */,
 				567FC113E998EC5BB944735E /* AuthAPIService.swift */,
+				14B05F2E3007525C1AC18809 /* CategoriesAPIService.swift */,
+				232A7744246B43CF19F01D9D /* TransactionsAPIService.swift */,
 			);
 			path = Network;
 			sourceTree = "<group>";
@@ -119,6 +145,14 @@
 			path = Errors;
 			sourceTree = "<group>";
 		};
+		38AC7F6F1C4CD0F5D87D2001 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				F79A11F308ECC52E55115181 /* Models */,
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
 		38C195D02F325E236AD0E5F2 /* CofrinhoApp */ = {
 			isa = PBXGroup;
 			children = (
@@ -127,6 +161,7 @@
 				42988F2B01589D33F1523016 /* ContentView.swift */,
 				D6BCA81EA531DE82480CC13C /* Info.plist */,
 				5FDA0DA11E1BEEF21B7EAF42 /* Core */,
+				38AC7F6F1C4CD0F5D87D2001 /* Data */,
 				23526A759B433CEE9B93003D /* Features */,
 			);
 			path = CofrinhoApp;
@@ -179,6 +214,18 @@
 			path = Extensions;
 			sourceTree = "<group>";
 		};
+		913D6A79D5ECC8BA32159A41 /* Transactions */ = {
+			isa = PBXGroup;
+			children = (
+				79FC3B292662892FD1CCB755 /* CreateAccountSheetView.swift */,
+				4CCED32F0A41C236DF1BF35A /* CreateCategorySheetView.swift */,
+				72FAD0764A3DA8E5C2F86F7F /* NewExpenseView.swift */,
+				B4B137D478046A743562212D /* NewExpenseViewModel.swift */,
+				9185A2C53EE8B6FCAFE9FDA5 /* TransactionsListView.swift */,
+			);
+			path = Transactions;
+			sourceTree = "<group>";
+		};
 		C6870DE2DA88CD5C2B78F946 /* CofrinhoTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -203,6 +250,16 @@
 				BA9B92BD256FBD451CAEAFE5 /* ProfileView.swift */,
 			);
 			path = Profile;
+			sourceTree = "<group>";
+		};
+		F79A11F308ECC52E55115181 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				EEC3D8795E7FACF9E01282B5 /* AccountModel.swift */,
+				5722952A562391B68D4E1160 /* CategoryModel.swift */,
+				CC5ABE987AAC4E0D11AC1FD3 /* TransactionModel.swift */,
+			);
+			path = Models;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -306,14 +363,20 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				048AD68AB822E0459F55A821 /* AccountModel.swift in Sources */,
+				27544581303823BBBDCD6873 /* AccountsAPIService.swift in Sources */,
 				1C3F10BF94E3B68712A45A32 /* AppErrorProtocol.swift in Sources */,
 				E05EC1964B3E623F96C4CFC7 /* AppLogger.swift in Sources */,
 				5856E6B12A7E43D28DC9ADEB /* AuthAPIService.swift in Sources */,
 				6E123339AEEFDA877A8BDB77 /* AuthError.swift in Sources */,
 				F894ADEC9B6CDDFE98FB6012 /* AuthViewModel.swift in Sources */,
 				67CE5A9437F9427261FA6FE6 /* BiometryService.swift in Sources */,
+				1CF7D235EB6A3E6499EB2227 /* CategoriesAPIService.swift in Sources */,
+				FB9F3F8303BF967121B15889 /* CategoryModel.swift in Sources */,
 				01AB8D39219004C9F6F0785D /* CofrinhoApp.swift in Sources */,
 				297066F55DF106707D4414B6 /* ContentView.swift in Sources */,
+				11BA7D0331C8E5C1B65DEC6E /* CreateAccountSheetView.swift in Sources */,
+				334C0532C8293A403B02B0DD /* CreateCategorySheetView.swift in Sources */,
 				8A25BDF7F9E67B6604EA1B9E /* DatabaseError.swift in Sources */,
 				8873E1945EF4FB68D8219DA4 /* KeychainHelper.swift in Sources */,
 				C702BD3296A5AF3C88CCB3CE /* LogCategory.swift in Sources */,
@@ -321,8 +384,13 @@
 				D7607126BBCDADBCD6F860E8 /* LoginView.swift in Sources */,
 				AE6E27370D79B866F33E6454 /* MainTabView.swift in Sources */,
 				B158F74A0B0A34C221A74B7E /* NetworkError.swift in Sources */,
+				46D6B058020523D1C93AFE9F /* NewExpenseView.swift in Sources */,
+				94BD96C7EADA7D04E4263A43 /* NewExpenseViewModel.swift in Sources */,
 				6706CE7D40EF27C354D6C82E /* ProfileView.swift in Sources */,
 				B0DA2D3DDBA010ADFFF979D3 /* SecurityError.swift in Sources */,
+				7D0D8AE914BE1CF2F5526FF3 /* TransactionModel.swift in Sources */,
+				C278974BBDB3333F36192EC8 /* TransactionsAPIService.swift in Sources */,
+				F25447BA1D059109E7584115 /* TransactionsListView.swift in Sources */,
 				869E6CE9FC96A01A493C53BD /* ValidationError.swift in Sources */,
 				ACA5D6F01D773B88243D3D8D /* View+ErrorAlert.swift in Sources */,
 			);

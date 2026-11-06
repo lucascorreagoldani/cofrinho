@@ -52,23 +52,23 @@ public final class AuthViewModel {
             return
         }
 
-        // Carrega usuário e preferências em cache imediatamente para garantir UX fluida (sem telas brancas)
-        if let cachedUser = loadUserFromCache() {
-            self.currentUser = cachedUser
-            self.currentPreferences = loadPrefsFromCache()
-            self.isAuthenticated = true
-        }
-
-        guard let savedToken = KeychainHelper.shared.read(key: tokenKey) else {
-            if KeychainHelper.shared.read(key: refreshTokenKey) != nil {
-                Task {
-                    await validateOrRefreshSession()
-                }
-            }
+        // CRÍTICO: Para que a sessão seja renovável e válida na VPS, é OBRIGATÓRIO ter o Refresh Token de 7 dias.
+        // Se NÃO temos o refresh token (ex: sessão expirada, antiga ou inconsistente), NUNCA solicita Face ID!
+        // Limpa resquícios e exibe o formulário de login diretamente sem interrupções.
+        guard let savedRefreshToken = KeychainHelper.shared.read(key: refreshTokenKey),
+              !savedRefreshToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            AppLogger.shared.info("Nenhuma sessão renovável encontrada. Exibindo tela de login diretamente (sem Face ID).", category: .security)
+            performSilentLogout()
             return
         }
 
-        self.token = savedToken
+        // Se temos o refresh token, a sessão é válida! Carrega o cache local para UX imediata
+        if let cachedUser = loadUserFromCache() {
+            self.currentUser = cachedUser
+            self.currentPreferences = loadPrefsFromCache()
+        }
+
+        self.token = KeychainHelper.shared.read(key: tokenKey)
         let isBiometryEnabled = UserDefaults.standard.bool(forKey: biometryPrefKey)
 
         Task {
@@ -279,7 +279,7 @@ public final class AuthViewModel {
             _ = try? await AuthAPIService.shared.logout(token: token)
         }
 
-        await performSilentLogout()
+        performSilentLogout()
         self.passwordInput = ""
         self.registerPasswordInput = ""
         self.confirmPasswordInput = ""
@@ -321,7 +321,7 @@ public final class AuthViewModel {
     private func tryRefreshToken() async {
         guard let savedRefreshToken = KeychainHelper.shared.read(key: refreshTokenKey) else {
             AppLogger.shared.info("Nenhum refresh token encontrado. Requer novo login.", category: .security)
-            await performSilentLogout()
+            performSilentLogout()
             return
         }
 
@@ -343,7 +343,7 @@ public final class AuthViewModel {
         } catch let authErr as AuthError where authErr.errorCode == "AUTH_001" || authErr.errorCode == "AUTH_009" {
             // A sessão de 7 dias expirou de fato ou foi revogada no servidor
             AppLogger.shared.info("Sessão de 7 dias expirada na VPS. Solicitando novo login.", category: .security)
-            await performSilentLogout()
+            performSilentLogout()
         } catch {
             // Se houver falha de rede temporária durante o refresh, não desconecta o usuário
             AppLogger.shared.warning("Falha de conexão com a VPS durante renovação de token. Mantendo autenticação offline.", category: .network)
@@ -353,7 +353,7 @@ public final class AuthViewModel {
         }
     }
 
-    private func performSilentLogout() async {
+    private func performSilentLogout() {
         KeychainHelper.shared.clearAll()
         UserDefaults.standard.removeObject(forKey: fastLoginKey)
         UserDefaults.standard.removeObject(forKey: biometryPrefKey)
