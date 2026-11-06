@@ -25,11 +25,10 @@ public final class NewExpenseViewModel {
     public var allSuggestions: [SuggestionItemDTO] = []
     public var filteredSuggestions: [SuggestionItemDTO] = []
 
-    // MARK: - Estados de Controle
+    // MARK: - Estados de Controle & Framework de Erros Cofrinho
     public var isLoading: Bool = false
     public var isSaving: Bool = false
-    public var errorMessage: String?
-    public var showErrorAlert: Bool = false
+    public var activeError: (any AppErrorProtocol)?
     public var successFeedback: String?
     public var showSuccessAlert: Bool = false
 
@@ -45,7 +44,6 @@ public final class NewExpenseViewModel {
 
     // MARK: - Formatação Monetária
     public func updateAmountFromDigits(_ input: String) {
-        // Extrai apenas dígitos
         let cleanDigits = input.filter { $0.isNumber }
         if let cents = Double(cleanDigits) {
             rawAmount = cents / 100.0
@@ -127,14 +125,19 @@ public final class NewExpenseViewModel {
             self.allSuggestions = loadedSugg
             self.filteredSuggestions = loadedSugg
 
-            // Seleciona a primeira categoria e conta como default se nada estiver selecionado
             if selectedCategory == nil, let firstCat = loadedCats.first {
                 selectedCategory = firstCat
             }
             if selectedAccount == nil, let firstAcc = loadedAccs.first {
                 selectedAccount = firstAcc
             }
+            AppLogger.shared.info("Dados de categorias (\(loadedCats.count)) e contas (\(loadedAccs.count)) carregados.", category: .network)
+        } catch let err as any AppErrorProtocol {
+            self.activeError = err
+            AppLogger.shared.error("Erro ao carregar dados do formulário: \(err.errorDescription ?? err.localizedDescription)", category: .network)
         } catch {
+            let netErr = NetworkError.unknown(reason: error.localizedDescription)
+            self.activeError = netErr
             AppLogger.shared.error("Erro ao carregar dados do formulário: \(error.localizedDescription)", category: .network)
         }
     }
@@ -169,22 +172,26 @@ public final class NewExpenseViewModel {
     public func saveTransaction(token: String) async -> Bool {
         let trimmedDesc = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedDesc.isEmpty else {
-            showError("Por favor, informe a descrição do gasto.")
+            activeError = ValidationError.emptyTitle
+            AppLogger.shared.warning("Validação falhou: Descrição vazia", category: .validation)
             return false
         }
 
         guard rawAmount > 0 else {
-            showError("Por favor, informe um valor maior que zero.")
+            activeError = ValidationError.invalidAmount
+            AppLogger.shared.warning("Validação falhou: Valor zerado ou negativo", category: .validation)
             return false
         }
 
         guard let category = selectedCategory else {
-            showError("Por favor, selecione uma categoria.")
+            activeError = ValidationError.custom(message: "Por favor, selecione uma categoria para este gasto.")
+            AppLogger.shared.warning("Validação falhou: Nenhuma categoria selecionada", category: .validation)
             return false
         }
 
         guard let account = selectedAccount else {
-            showError("Por favor, selecione uma conta de pagamento.")
+            activeError = ValidationError.custom(message: "Por favor, selecione uma conta ou cartão de pagamento.")
+            AppLogger.shared.warning("Validação falhou: Nenhuma conta selecionada", category: .validation)
             return false
         }
 
@@ -212,12 +219,16 @@ public final class NewExpenseViewModel {
                 : "Gasto cadastrado com sucesso!"
             showSuccessAlert = true
             resetForm()
+            AppLogger.shared.info("Gasto registrado com sucesso: \(trimmedDesc)", category: .business)
             return true
         } catch let err as any AppErrorProtocol {
-            showError(err.errorDescription ?? "Ocorreu um erro.")
+            self.activeError = err
+            AppLogger.shared.error("Falha ao registrar gasto: \(err.errorDescription ?? err.localizedDescription)", category: .network)
             return false
         } catch {
-            showError(error.localizedDescription)
+            let unk = NetworkError.unknown(reason: error.localizedDescription)
+            self.activeError = unk
+            AppLogger.shared.error("Erro inesperado ao registrar gasto: \(error.localizedDescription)", category: .network)
             return false
         }
     }
@@ -229,10 +240,5 @@ public final class NewExpenseViewModel {
         selectedDate = Date()
         isInstallmentsEnabled = false
         installmentsCount = 2
-    }
-
-    private func showError(_ message: String) {
-        errorMessage = message
-        showErrorAlert = true
     }
 }

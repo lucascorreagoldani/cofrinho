@@ -9,7 +9,7 @@ public struct CreateCategorySheetView: View {
     @State private var selectedIcon: String = "tag.fill"
     @State private var selectedColorHex: String = "#FF9500"
     @State private var isSubmitting: Bool = false
-    @State private var localError: String?
+    @State private var activeError: (any AppErrorProtocol)?
 
     private let availableIcons = [
         "cart.fill", "fork.knife", "car.fill", "house.fill",
@@ -119,12 +119,6 @@ public struct CreateCategorySheetView: View {
                         }
                     }
 
-                    if let localError {
-                        Text(localError)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-
                     // Botão Salvar
                     Button {
                         Task {
@@ -159,15 +153,19 @@ public struct CreateCategorySheetView: View {
                     Button("Cancelar") { dismiss() }
                 }
             }
+            .handleAnyAppError($activeError)
         }
     }
 
     private func saveCategory() async {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else {
+            activeError = ValidationError.emptyTitle
+            return
+        }
 
         isSubmitting = true
-        localError = nil
+        activeError = nil
 
         do {
             let created = try await CategoriesAPIService.shared.createCategory(
@@ -178,9 +176,16 @@ public struct CreateCategorySheetView: View {
             )
             viewModel.categories.append(created)
             viewModel.selectedCategory = created
+            AppLogger.shared.info("Nova categoria criada: \(trimmed)", category: .business)
             dismiss()
+        } catch let err as any AppErrorProtocol {
+            activeError = err
+            AppLogger.shared.error("Erro ao criar categoria: \(err.errorDescription ?? err.localizedDescription)", category: .network)
+            isSubmitting = false
         } catch {
-            localError = error.localizedDescription
+            let unk = NetworkError.unknown(reason: error.localizedDescription)
+            activeError = unk
+            AppLogger.shared.error("Erro inesperado ao criar categoria: \(error.localizedDescription)", category: .network)
             isSubmitting = false
         }
     }

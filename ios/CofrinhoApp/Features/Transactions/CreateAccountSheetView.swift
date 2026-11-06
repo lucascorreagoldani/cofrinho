@@ -12,7 +12,7 @@ public struct CreateAccountSheetView: View {
     @State private var closingDay: Int = 20
     @State private var dueDay: Int = 27
     @State private var isSubmitting: Bool = false
-    @State private var localError: String?
+    @State private var activeError: (any AppErrorProtocol)?
 
     private let accountTypes = [
         ("credit_card", "Cartão de Crédito", "creditcard.fill"),
@@ -151,12 +151,6 @@ public struct CreateAccountSheetView: View {
                         }
                     }
 
-                    if let localError {
-                        Text(localError)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-
                     // Botão Salvar
                     Button {
                         Task {
@@ -191,15 +185,19 @@ public struct CreateAccountSheetView: View {
                     Button("Cancelar") { dismiss() }
                 }
             }
+            .handleAnyAppError($activeError)
         }
     }
 
     private func saveAccount() async {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else {
+            activeError = ValidationError.emptyTitle
+            return
+        }
 
         isSubmitting = true
-        localError = nil
+        activeError = nil
 
         let iconName = accountTypes.first(where: { $0.0 == selectedType })?.2 ?? "creditcard.fill"
 
@@ -216,9 +214,16 @@ public struct CreateAccountSheetView: View {
             )
             viewModel.accounts.append(created)
             viewModel.selectedAccount = created
+            AppLogger.shared.info("Nova conta criada: \(trimmed)", category: .business)
             dismiss()
+        } catch let err as any AppErrorProtocol {
+            activeError = err
+            AppLogger.shared.error("Erro ao criar conta: \(err.errorDescription ?? err.localizedDescription)", category: .network)
+            isSubmitting = false
         } catch {
-            localError = error.localizedDescription
+            let unk = NetworkError.unknown(reason: error.localizedDescription)
+            activeError = unk
+            AppLogger.shared.error("Erro inesperado ao criar conta: \(error.localizedDescription)", category: .network)
             isSubmitting = false
         }
     }

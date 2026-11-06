@@ -359,11 +359,7 @@ public struct NewExpenseView: View {
         } message: {
             Text(viewModel.successFeedback ?? "Gasto registrado com sucesso.")
         }
-        .alert("Atenção", isPresented: $viewModel.showErrorAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(viewModel.errorMessage ?? "Ocorreu um erro.")
-        }
+        .handleAnyAppError($viewModel.activeError)
     }
 }
 

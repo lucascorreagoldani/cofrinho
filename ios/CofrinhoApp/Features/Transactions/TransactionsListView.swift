@@ -9,8 +9,7 @@ public struct TransactionsListView: View {
     @State private var showNewExpenseSheet: Bool = false
     @State private var selectedMonth: Int = Calendar.current.component(.month, from: Date())
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
-    @State private var errorMessage: String?
-    @State private var showErrorAlert: Bool = false
+    @State private var activeError: (any AppErrorProtocol)?
 
     // Estado para exclusão em cascata
     @State private var transactionToDelete: TransactionModel?
@@ -119,11 +118,7 @@ public struct TransactionsListView: View {
             } message: {
                 Text("Este gasto faz parte de um parcelamento. Deseja remover apenas a parcela atual ou também as parcelas restantes?")
             }
-            .alert("Atenção", isPresented: $showErrorAlert) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(errorMessage ?? "Ocorreu um erro.")
-            }
+            .handleAnyAppError($activeError)
             .task {
                 await loadTransactions()
             }
@@ -321,9 +316,14 @@ public struct TransactionsListView: View {
                 month: selectedMonth,
                 year: selectedYear
             )
+            AppLogger.shared.info("Extrato carregado com \(transactions.count) transações.", category: .business)
+        } catch let err as any AppErrorProtocol {
+            self.activeError = err
+            AppLogger.shared.error("Erro ao carregar extrato: \(err.errorDescription ?? err.localizedDescription)", category: .network)
         } catch {
-            errorMessage = error.localizedDescription
-            showErrorAlert = true
+            let unk = NetworkError.unknown(reason: error.localizedDescription)
+            self.activeError = unk
+            AppLogger.shared.error("Erro ao carregar extrato: \(error.localizedDescription)", category: .network)
         }
     }
 
@@ -345,20 +345,30 @@ public struct TransactionsListView: View {
                 id: tx.id,
                 cascade: cascade
             )
+            AppLogger.shared.info("Transação \(tx.id) excluída (modo: \(cascade)).", category: .business)
             await loadTransactions()
+        } catch let err as any AppErrorProtocol {
+            self.activeError = err
+            AppLogger.shared.error("Erro ao excluir gasto: \(err.errorDescription ?? err.localizedDescription)", category: .network)
         } catch {
-            errorMessage = error.localizedDescription
-            showErrorAlert = true
+            let unk = NetworkError.unknown(reason: error.localizedDescription)
+            self.activeError = unk
+            AppLogger.shared.error("Erro ao excluir gasto: \(error.localizedDescription)", category: .network)
         }
     }
 
     private func toggleVisibility(_ tx: TransactionModel) async {
         do {
             _ = try await TransactionsAPIService.shared.toggleVisibility(token: token, id: tx.id)
+            AppLogger.shared.info("Visibilidade alternada para transação \(tx.id).", category: .business)
             await loadTransactions()
+        } catch let err as any AppErrorProtocol {
+            self.activeError = err
+            AppLogger.shared.error("Erro ao alternar visibilidade: \(err.errorDescription ?? err.localizedDescription)", category: .network)
         } catch {
-            errorMessage = error.localizedDescription
-            showErrorAlert = true
+            let unk = NetworkError.unknown(reason: error.localizedDescription)
+            self.activeError = unk
+            AppLogger.shared.error("Erro ao alternar visibilidade: \(error.localizedDescription)", category: .network)
         }
     }
 

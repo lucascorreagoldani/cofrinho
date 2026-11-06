@@ -7,6 +7,8 @@ public enum LogCategory: String, Sendable, CaseIterable {
     case network = "Network"
     case security = "Security"
     case ui = "UI"
+    case business = "Business"
+    case validation = "Validation"
 
     public var description: String {
         rawValue
