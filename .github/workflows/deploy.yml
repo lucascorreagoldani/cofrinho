@@ -30,17 +30,17 @@ jobs:
 
       - name: Instalar Dependências e Executar Testes
         run: |
-          echo "⚡ Instalando dependências do backend..."
+          echo "Instalando dependencias do backend..."
           cd backend
           npm ci
-          echo "🧪 Executando testes unitários e validações RFC 9457..."
+          echo "Executando testes unitarios e validacoes RFC 9457..."
           npm test
-          echo "🔨 Compilando aplicação TypeScript com tsup..."
+          echo "Compilando aplicacao TypeScript com tsup..."
           npm run build
 
       - name: Empacotar Artefatos de Produção
         run: |
-          echo "📦 Empacotando aplicação para deploy..."
+          echo "Empacotando aplicacao para deploy..."
           tar -czf cofrinho.tar.gz \
             backend/dist/ \
             backend/src/database/schema.sql \
@@ -72,14 +72,18 @@ jobs:
           name: cofrinho-artifacts
 
       - name: Configurar Chave SSH da VPS
+        env:
+          SSH_KEY: ${{ secrets.DEV_RYZEN_SSH_KEY || secrets.DEV_VPS_SSH_KEY || secrets.RYZEN_SSH_KEY || secrets.VPS_SSH_KEY }}
+          HOST_IP: ${{ secrets.DEV_RYZEN_IP || secrets.DEV_VPS_IP || secrets.RYZEN_IP || secrets.VPS_IP }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.DEV_RYZEN_SSH_KEY || secrets.DEV_VPS_SSH_KEY || secrets.RYZEN_SSH_KEY || secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
+          echo "$SSH_KEY" > ~/.ssh/vps_key
           chmod 600 ~/.ssh/vps_key
 
+          TARGET_IP="${HOST_IP:-198.89.99.42}"
           cat <<EOF > ~/.ssh/config
           Host vps
-              HostName ${{ secrets.DEV_RYZEN_IP || secrets.DEV_VPS_IP || secrets.RYZEN_IP || secrets.VPS_IP || '198.89.99.42' }}
+              HostName $TARGET_IP
               User root
               IdentityFile ~/.ssh/vps_key
               StrictHostKeyChecking no
@@ -92,32 +96,30 @@ jobs:
 
       - name: Transferir Pacote para a VPS
         run: |
-          echo "🚀 Enviando pacote para o host remoto..."
+          echo "Enviando pacote para o host remoto..."
           scp cofrinho.tar.gz vps:/tmp/
 
       - name: Orquestrar e Iniciar Containers no Docker
         run: |
-          ssh vps \
-            "
-            set -e &&
-            echo '📂 Preparando diretório /opt/cofrinho...' &&
-            mkdir -p /opt/cofrinho &&
-            tar -xzf /tmp/cofrinho.tar.gz -C /opt/cofrinho &&
-            rm -f /tmp/cofrinho.tar.gz &&
-            cd /opt/cofrinho &&
-            
-            # Se não existir .env no host, inicializa com base no .env.example
+          ssh vps << 'ENDSSH'
+            set -e
+            echo "Preparando diretorio /opt/cofrinho..."
+            mkdir -p /opt/cofrinho
+            tar -xzf /tmp/cofrinho.tar.gz -C /opt/cofrinho
+            rm -f /tmp/cofrinho.tar.gz
+            cd /opt/cofrinho
+
             if [ ! -f .env ]; then
-              echo '⚙️ Inicializando arquivo .env a partir de backend/.env.example...' &&
+              echo "Inicializando arquivo .env a partir de backend/.env.example..."
               cp backend/.env.example .env 2>/dev/null || true
-            fi &&
+            fi
 
-            echo '🐳 Subindo containers via Docker Compose...' &&
-            (docker compose up -d --build --remove-orphans || docker-compose up -d --build --remove-orphans) &&
-            
-            echo '🧹 Limpando imagens órfãs...' &&
-            docker image prune -f &&
+            echo "Subindo containers via Docker Compose..."
+            (docker compose up -d --build --remove-orphans || docker-compose up -d --build --remove-orphans)
 
-            echo '🔍 Verificando status dos containers...' &&
-            docker ps --filter 'name=cofrinho'
-            "
+            echo "Limpando imagens orfas..."
+            docker image prune -f
+
+            echo "Verificando status dos containers..."
+            docker ps --filter "name=cofrinho"
+          ENDSSH
