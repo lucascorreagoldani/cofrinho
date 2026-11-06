@@ -27,35 +27,37 @@ export const refreshBodySchema = z.object({
 });
 
 export const userResponseSchema = z.object({
-  id: z.string().uuid(),
+  id: z.number().int().positive().describe('ID crescente único do usuário (1, 2, 3...)'),
   username: z.string(),
   email: z.string().email(),
   first_ip: z.string(),
   last_ip: z.string(),
-  first_login: z.string().nullable().optional(),
-  last_login: z.string().nullable().optional(),
-  registered_at: z.string(),
+  first_login: z.number().int().nullable().optional().describe('Timestamp em epoch milissegundos do primeiro login'),
+  last_login: z.number().int().nullable().optional().describe('Timestamp em epoch milissegundos do último login'),
+  registered_at: z.number().int().describe('Timestamp em epoch milissegundos do cadastro'),
 });
 
 export const authSuccessResponseSchema = z.object({
   access_token: z.string(),
   refresh_token: z.string(),
   token_type: z.literal('Bearer'),
-  expires_in: z.number(), /* Segundos */
+  expires_in: z.number().int().describe('Tempo de vida do access token em segundos (ex: 900)'),
   user: userResponseSchema,
   session: z.object({
     id: z.string().uuid(),
     status: z.string(),
-    expires_at: z.string(),
+    expires_at: z.number().int().describe('Timestamp de expiração em epoch milissegundos'),
   }),
 });
 
 export const problemDetailsSchema = z.object({
   type: z.string(),
   title: z.string(),
-  status: z.number(),
+  status: z.number().int(),
   detail: z.string(),
   instance: z.string().optional(),
   code: z.string(),
+  incidentId: z.string().describe('Identificador de incidente para auditoria e rastreio'),
+  timestamp: z.number().int().describe('Timestamp do erro em epoch milissegundos'),
   invalidParams: z.array(z.object({ name: z.string(), reason: z.string() })).optional(),
 });

@@ -9,7 +9,7 @@ import {
   authSuccessResponseSchema,
   problemDetailsSchema,
 } from './auth.schemas.js';
-import { AppError } from '../../shared/errors/AppError.js';
+import { UnauthorizedError } from '../../shared/errors/AppError.js';
 
 const authService = new AuthService();
 
@@ -21,7 +21,7 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
       schema: {
         tags: ['Autenticação'],
         summary: 'Registrar novo usuário',
-        description: 'Cria uma nova conta de usuário, definindo preferências iniciais e registrando o primeiro IP.',
+        description: 'Cria uma nova conta de usuário com ID numérico incremental e timestamps em epoch milissegundos.',
         body: registerBodySchema,
         response: {
           201: userResponseSchema.describe('Usuário criado com sucesso'),
@@ -34,16 +34,9 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
       const clientIp = request.ip || '127.0.0.1';
       const user = await authService.register(request.body, clientIp);
 
-      /* Regra 4: Cabeçalho Location na criação de recurso (201 Created) */
+      /* Cabeçalho Location na criação de recurso (201 Created) */
       reply.header('Location', `/v1/users/${user.id}`);
-      return reply.status(201).send({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        first_ip: user.first_ip,
-        last_ip: user.last_ip,
-        registered_at: user.registered_at.toISOString(),
-      });
+      return reply.status(201).send(user);
     }
   );
 
@@ -71,7 +64,8 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
       /* Gera Access Token (JWT) */
       const accessToken = app.jwt.sign(
         {
-          sub: result.user.id,
+          sub: String(result.user.id),
+          userId: result.user.id,
           username: result.user.username,
           sessionId: result.session.id,
         },
@@ -81,7 +75,8 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
       /* Gera Refresh Token (JWT com tempo de expiração da sessão) */
       const refreshToken = app.jwt.sign(
         {
-          sub: result.user.id,
+          sub: String(result.user.id),
+          userId: result.user.id,
           sessionId: result.session.id,
           type: 'refresh',
         },
@@ -136,7 +131,7 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
           200: z.object({
             access_token: z.string(),
             token_type: z.literal('Bearer'),
-            expires_in: z.number(),
+            expires_in: z.number().int(),
           }),
           401: problemDetailsSchema,
         },
@@ -149,12 +144,12 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
         );
 
         if (decoded.type !== 'refresh') {
-          throw new AppError('Token Inválido', 'O token fornecido não é um refresh token.', 401, 'INVALID_TOKEN');
+          throw new UnauthorizedError('O token fornecido não é um refresh token.');
         }
 
         const isValid = await authService.validateSession(decoded.sessionId);
         if (!isValid) {
-          throw new AppError('Sessão Expirada', 'Esta sessão foi revogada ou expirou.', 401, 'SESSION_EXPIRED');
+          throw new UnauthorizedError('Esta sessão foi revogada ou expirou.');
         }
 
         const newAccessToken = app.jwt.sign(
@@ -170,8 +165,11 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
           token_type: 'Bearer',
           expires_in: 15 * 60,
         });
-      } catch {
-        throw new AppError('Não Autorizado', 'Refresh token inválido ou expirado.', 401, 'UNAUTHORIZED');
+      } catch (err) {
+        if (err instanceof UnauthorizedError) {
+          throw err;
+        }
+        throw new UnauthorizedError('Refresh token inválido ou expirado.');
       }
     }
   );

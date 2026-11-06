@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { dbPool } from '../../database/postgres.js';
 import { redis } from '../../database/redis.js';
-import { AppError } from '../../shared/errors/AppError.js';
+import { ConflictError, UnauthorizedError } from '../../shared/errors/AppError.js';
 import { z } from 'zod';
 import { registerBodySchema, loginBodySchema } from './auth.schemas.js';
 
@@ -19,23 +19,20 @@ export class AuthService {
       );
 
       if (existingUser.rows.length > 0) {
-        const conflictField = existingUser.rows[0].username === data.username ? 'username' : 'email';
-        throw new AppError(
-          'Conflito de Usuário',
-          `Já existe uma conta cadastrada com este ${conflictField === 'username' ? 'nome de usuário' : 'e-mail'}.`,
-          409,
-          'USER_CONFLICT',
-          'https://api.cofrinho.app/errors/user-conflict'
+        const conflictField = existingUser.rows[0].username === data.username ? 'nome de usuário' : 'e-mail';
+        throw new ConflictError(
+          `Já existe uma conta cadastrada com este ${conflictField}.`
         );
       }
 
       /* 2. Hash da senha com salt 12 */
       const passwordHash = await bcrypt.hash(data.password, 12);
+      const nowTimestamp = Date.now();
 
-      /* 3. Insere usuário */
+      /* 3. Insere usuário com ID crescente e timestamp em epoch ms */
       const insertUserQuery = `
-        INSERT INTO users (username, email, password_hash, first_ip, last_ip, ip_history, registered_at)
-        VALUES ($1, $2, $3, $4, $4, $5::jsonb, NOW())
+        INSERT INTO users (username, email, password_hash, first_ip, last_ip, ip_history, registered_at, updated_at)
+        VALUES ($1, $2, $3, $4, $4, $5::jsonb, $6, $6)
         RETURNING id, username, email, first_ip, last_ip, registered_at
       `;
       const ipHistoryJson = JSON.stringify([clientIp]);
@@ -45,19 +42,30 @@ export class AuthService {
         passwordHash,
         clientIp,
         ipHistoryJson,
+        nowTimestamp,
       ]);
 
       const newUser = userResult.rows[0];
+      const numericUserId = Number(newUser.id);
 
-      /* 4. Cria preferências padrão na tabela users_preferences (1:1) */
+      /* 4. Cria preferências padrão na tabela users_preferences (1:1) com timestamp numérico */
       await client.query(
-        `INSERT INTO users_preferences (user_id, fast_login, verification) VALUES ($1, true, false)`,
-        [newUser.id]
+        `INSERT INTO users_preferences (user_id, fast_login, verification, updated_at) VALUES ($1, true, false, $2)`,
+        [numericUserId, nowTimestamp]
       );
 
       await client.query('COMMIT');
 
-      return newUser;
+      return {
+        id: numericUserId,
+        username: newUser.username,
+        email: newUser.email,
+        first_ip: newUser.first_ip,
+        last_ip: newUser.last_ip,
+        first_login: null,
+        last_login: null,
+        registered_at: Number(newUser.registered_at),
+      };
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -72,112 +80,102 @@ export class AuthService {
     try {
       /* 1. Busca usuário por username ou email */
       const userResult = await client.query(
-        `SELECT id, username, email, password_hash, first_login, ip_history FROM users WHERE username = $1 OR email = $1`,
+        `SELECT id, username, email, password_hash, first_login, ip_history, registered_at FROM users WHERE username = $1 OR email = $1`,
         [data.login]
       );
 
       if (userResult.rows.length === 0) {
-        throw new AppError(
-          'Credenciais Inválidas',
-          'Usuário/e-mail ou senha incorretos.',
-          401,
-          'INVALID_CREDENTIALS',
-          'https://api.cofrinho.app/errors/invalid-credentials'
-        );
+        throw new UnauthorizedError('Usuário/e-mail ou senha incorretos.');
       }
 
       const user = userResult.rows[0];
+      const numericUserId = Number(user.id);
 
       /* 2. Valida senha */
       const isPasswordValid = await bcrypt.compare(data.password, user.password_hash);
       if (!isPasswordValid) {
-        throw new AppError(
-          'Credenciais Inválidas',
-          'Usuário/e-mail ou senha incorretos.',
-          401,
-          'INVALID_CREDENTIALS',
-          'https://api.cofrinho.app/errors/invalid-credentials'
-        );
+        throw new UnauthorizedError('Usuário/e-mail ou senha incorretos.');
       }
 
       await client.query('BEGIN');
 
-      /* 3. Atualiza histórico de IP e datas de login */
+      /* 3. Atualiza histórico de IP e datas de login em epoch ms */
       const ipHistory: string[] = Array.isArray(user.ip_history) ? user.ip_history : [];
       if (!ipHistory.includes(clientIp)) {
         ipHistory.push(clientIp);
       }
 
+      const nowTimestamp = Date.now();
       const isFirstLogin = !user.first_login;
-      const now = new Date();
 
-      /* TTL da sessão (7 dias se fast_login, 24 horas caso contrário) */
+      /* TTL da sessão: 7 dias se fast_login, 24 horas caso contrário */
       const sessionDurationHours = data.fast_login ? 24 * 7 : 24;
-      const expiresAt = new Date(now.getTime() + sessionDurationHours * 60 * 60 * 1000);
+      const expiresAt = nowTimestamp + sessionDurationHours * 3600 * 1000;
 
-      /* 4. Cria sessão na tabela users_sessions */
+      /* 4. Cria sessão na tabela users_sessions com timestamps numéricos */
       const sessionResult = await client.query(
         `INSERT INTO users_sessions (user_id, login_time, status, ip, user_agent, expires_at)
-         VALUES ($1, NOW(), 'active', $2, $3, $4)
+         VALUES ($1, $2, 'active', $3, $4, $5)
          RETURNING id, status, expires_at, login_time`,
-        [user.id, clientIp, userAgent, expiresAt]
+        [numericUserId, nowTimestamp, clientIp, userAgent, expiresAt]
       );
 
       const session = sessionResult.rows[0];
 
-      /* 5. Atualiza tabela users com a última sessão e datas */
+      /* 5. Atualiza tabela users com a última sessão e timestamps em epoch ms */
       await client.query(
         `UPDATE users
-         SET last_login = NOW(),
-             first_login = COALESCE(first_login, NOW()),
-             last_ip = $1,
-             ip_history = $2::jsonb,
-             last_session = $3,
-             updated_at = NOW()
-         WHERE id = $4`,
-        [clientIp, JSON.stringify(ipHistory), session.id, user.id]
+         SET last_login = $1,
+             first_login = COALESCE(first_login, $1),
+             last_ip = $2,
+             ip_history = $3::jsonb,
+             last_session = $4,
+             updated_at = $1
+         WHERE id = $5`,
+        [nowTimestamp, clientIp, JSON.stringify(ipHistory), session.id, numericUserId]
       );
 
       /* 6. Atualiza preferência de fast_login se fornecida */
       await client.query(
-        `UPDATE users_preferences SET fast_login = $1, updated_at = NOW() WHERE user_id = $2`,
-        [data.fast_login, user.id]
+        `UPDATE users_preferences SET fast_login = $1, updated_at = $2 WHERE user_id = $3`,
+        [data.fast_login, nowTimestamp, numericUserId]
       );
 
       await client.query('COMMIT');
 
-      /* 7. Armazena no Redis para validação rápida (<1ms) e revogação instantânea */
+      /* 7. Armazena no Redis com namespace canônico cofrinho:session:<id> para validação instantânea (<1ms) */
       try {
         const sessionPayload = JSON.stringify({
-          userId: user.id,
+          userId: numericUserId,
           username: user.username,
           sessionId: session.id,
           ip: clientIp,
           fastLogin: data.fast_login,
-          expiresAt: expiresAt.toISOString(),
+          expiresAt,
+          loginTime: nowTimestamp,
         });
 
-        const ttlSeconds = sessionDurationHours * 60 * 60;
-        await redis.set(`session:${session.id}`, sessionPayload, 'EX', ttlSeconds);
+        const ttlSeconds = sessionDurationHours * 3600;
+        await redis.set(`cofrinho:session:${session.id}`, sessionPayload, 'EX', ttlSeconds);
       } catch (err) {
         console.warn('⚠️ Falha ao salvar sessão no Redis (seguindo apenas com PostgreSQL):', (err as Error).message);
       }
 
       return {
         user: {
-          id: user.id,
+          id: numericUserId,
           username: user.username,
           email: user.email,
           first_ip: user.first_ip || clientIp,
           last_ip: clientIp,
-          first_login: isFirstLogin ? now.toISOString() : user.first_login,
-          last_login: now.toISOString(),
-          registered_at: user.registered_at,
+          first_login: user.first_login ? Number(user.first_login) : (isFirstLogin ? nowTimestamp : null),
+          last_login: nowTimestamp,
+          registered_at: Number(user.registered_at),
         },
         session: {
           id: session.id,
           status: session.status,
-          expires_at: session.expires_at.toISOString(),
+          expires_at: Number(session.expires_at),
         },
         sessionDurationHours,
       };
@@ -193,20 +191,22 @@ export class AuthService {
     const client = await dbPool.connect();
 
     try {
-      /* 1. Atualiza registro na tabela users_sessions */
+      const nowTimestamp = Date.now();
+
+      /* 1. Atualiza registro na tabela users_sessions com duration em milissegundos */
       const result = await client.query(
         `UPDATE users_sessions
-         SET logout_time = NOW(),
-             duration = EXTRACT(EPOCH FROM (NOW() - login_time))::INTEGER,
+         SET logout_time = $1,
+             duration = ($1 - login_time),
              status = 'revoked'
-         WHERE id = $1 AND status = 'active'
+         WHERE id = $2 AND status = 'active'
          RETURNING user_id`,
-        [sessionId]
+        [nowTimestamp, sessionId]
       );
 
-      /* 2. Remove do Redis */
+      /* 2. Remove da chave canônica do Redis */
       try {
-        await redis.del(`session:${sessionId}`);
+        await redis.del(`cofrinho:session:${sessionId}`);
       } catch (err) {
         console.warn('⚠️ Falha ao remover sessão no Redis:', (err as Error).message);
       }
@@ -218,21 +218,28 @@ export class AuthService {
   }
 
   async validateSession(sessionId: string): Promise<boolean> {
-    /* 1. Tenta validar no Redis primeiro (cache) */
+    /* 1. Tenta validar no Redis primeiro (cache rápido < 1ms) */
     try {
-      const cached = await redis.get(`session:${sessionId}`);
-      if (cached) return true;
+      const cached = await redis.get(`cofrinho:session:${sessionId}`);
+      if (cached) {
+        const payload = JSON.parse(cached);
+        if (payload.expiresAt && payload.expiresAt > Date.now()) {
+          return true;
+        }
+        /* Sessão expirada no payload */
+        await redis.del(`cofrinho:session:${sessionId}`);
+        return false;
+      }
     } catch {
-      /* Falha no Redis cai no Postgres */
+      /* Falha no Redis cai no Postgres de forma não-bloqueante */
     }
 
-    /* 2. Validação no Postgres */
+    /* 2. Validação no Postgres com timestamp numérico */
     const result = await dbPool.query(
-      `SELECT id FROM users_sessions WHERE id = $1 AND status = 'active' AND expires_at > NOW()`,
-      [sessionId]
+      `SELECT id FROM users_sessions WHERE id = $1 AND status = 'active' AND expires_at > $2`,
+      [sessionId, Date.now()]
     );
 
     return result.rows.length > 0;
   }
 }
-

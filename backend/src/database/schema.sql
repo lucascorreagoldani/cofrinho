@@ -1,39 +1,42 @@
--- Cofrinho Database Schema (PostgreSQL)
+-- =============================================================================
+-- COFRINHO DATABASE SCHEMA (PostgreSQL)
+-- =============================================================================
 
--- 1. Tabela USERS
+-- 1. Tabela USERS (ID Crescente 1, 2, 3... e Timestamps em Epoch Milissegundos)
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id BIGSERIAL PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL UNIQUE,
     first_ip VARCHAR(45) NOT NULL,
     last_ip VARCHAR(45) NOT NULL,
     ip_history JSONB NOT NULL DEFAULT '[]'::jsonb,
-    first_login TIMESTAMPTZ,
-    last_login TIMESTAMPTZ,
+    first_login BIGINT,
+    last_login BIGINT,
     last_session UUID,
     password_hash VARCHAR(255) NOT NULL,
-    registered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    registered_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint,
+    updated_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
--- 2. Tabela USERS_SESSIONS
+-- 2. Tabela USERS_SESSIONS (Sessões ativas com Expiração em Timestamp)
 CREATE TABLE IF NOT EXISTS users_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    login_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    logout_time TIMESTAMPTZ,
-    duration INTEGER, -- Duração em segundos
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    login_time BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint,
+    logout_time BIGINT,
+    duration BIGINT, -- Duração em milissegundos
     status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'expired', 'revoked')),
     ip VARCHAR(45) NOT NULL,
     user_agent VARCHAR(255),
-    expires_at TIMESTAMPTZ NOT NULL
+    expires_at BIGINT NOT NULL -- Expiração em epoch milissegundos
 );
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON users_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON users_sessions(status);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires ON users_sessions(expires_at);
 
 -- FK circular de users.last_session para users_sessions.id
 DO $$
@@ -49,9 +52,26 @@ END $$;
 
 -- 3. Tabela USERS_PREFERENCES (Relação 1:1 estrita)
 CREATE TABLE IF NOT EXISTS users_preferences (
-    user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     fast_login BOOLEAN NOT NULL DEFAULT true,      -- "Manter Logado"
     verification BOOLEAN NOT NULL DEFAULT false,   -- "Face ID e Touch ID"
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint
 );
 
+-- 4. Tabela LOG_ERRORS (Auditoria Centralizada de Incidentes e B.O)
+CREATE TABLE IF NOT EXISTS log_errors (
+    id BIGSERIAL PRIMARY KEY,
+    incident_id VARCHAR(36) NOT NULL UNIQUE,
+    user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    message TEXT NOT NULL,
+    code VARCHAR(50) NOT NULL DEFAULT 'INTERNAL_ERROR',
+    status_code INTEGER NOT NULL DEFAULT 500,
+    error_trace TEXT,
+    context_data JSONB,
+    timestamp BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint,
+    status VARCHAR(20) NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN', 'RESOLVED', 'IGNORED'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_log_errors_incident ON log_errors(incident_id);
+CREATE INDEX IF NOT EXISTS idx_log_errors_timestamp ON log_errors(timestamp);
+CREATE INDEX IF NOT EXISTS idx_log_errors_user_id ON log_errors(user_id);

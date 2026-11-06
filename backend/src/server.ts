@@ -13,7 +13,13 @@ import {
 } from 'fastify-type-provider-zod';
 
 import { env } from './config/env.js';
-import { AppError } from './shared/errors/AppError.js';
+import {
+  AppError,
+  ValidationError,
+  UnauthorizedError,
+  InternalError,
+} from './shared/errors/AppError.js';
+import { ErrorAuditor } from './shared/errors/ErrorAuditor.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
 import { checkDatabaseConnection, dbPool } from './database/postgres.js';
@@ -76,12 +82,22 @@ export async function buildApp() {
     routePrefix: '/docs',
   });
 
-  /* 6. Tratamento Global de Erros (RFC 9457 Problem Details - Regra 2) */
-  app.setErrorHandler((error: FastifyError | AppError | Error, request, reply) => {
+  /* 6. Tratamento Global de Erros (RFC 9457 Problem Details com Auditoria de Incidentes) */
+  app.setErrorHandler(async (error: FastifyError | AppError | Error, request, reply) => {
     reply.header('Content-Type', 'application/problem+json');
+
+    const reqUser = request.user as { userId?: number; sub?: string } | undefined;
+    const currentUserId = reqUser?.userId ? Number(reqUser.userId) : (reqUser?.sub ? Number(reqUser.sub) : undefined);
 
     /* Erros controlados da aplicação */
     if (error instanceof AppError) {
+      if (error.statusCode >= 500) {
+        await ErrorAuditor.log(error, {
+          userId: currentUserId,
+          requestUrl: request.url,
+          method: request.method,
+        });
+      }
       return reply.status(error.statusCode).send(error.toProblemDetails(request.url));
     }
 
@@ -94,38 +110,31 @@ export async function buildApp() {
         reason: v.message || 'Valor inválido',
       }));
 
-      return reply.status(400).send({
-        type: 'https://api.cofrinho.app/errors/validation-error',
-        title: 'Erro de Validação',
-        status: 400,
-        detail: 'Um ou mais campos da requisição não atenderam aos critérios exigidos.',
-        instance: request.url,
-        code: 'VALIDATION_FAILED',
-        invalidParams,
-      });
+      const valError = new ValidationError(
+        'Um ou mais campos da requisição não atenderam aos critérios exigidos.',
+        invalidParams
+      );
+      return reply.status(400).send(valError.toProblemDetails(request.url));
     }
 
     /* Erro 401 do JWT */
     if (err.statusCode === 401) {
-      return reply.status(401).send({
-        type: 'https://api.cofrinho.app/errors/unauthorized',
-        title: 'Não Autorizado',
-        status: 401,
-        detail: 'Token de autenticação ausente, expirado ou inválido.',
-        instance: request.url,
-        code: 'UNAUTHORIZED',
-      });
+      const unauthError = new UnauthorizedError('Token de autenticação ausente, expirado ou inválido.');
+      return reply.status(401).send(unauthError.toProblemDetails(request.url));
     }
 
-    /* Erro inesperado (500) */
+    /* Erro inesperado (500) com persistência de auditoria */
     request.log.error(error);
+    const incidentId = await ErrorAuditor.log(error, {
+      userId: currentUserId,
+      requestUrl: request.url,
+      method: request.method,
+    });
+
+    const internalErr = new InternalError('Ocorreu uma falha inesperada. Protocolo de suporte gerado.');
     return reply.status(500).send({
-      type: 'https://api.cofrinho.app/errors/internal-server-error',
-      title: 'Erro Interno do Servidor',
-      status: 500,
-      detail: 'Ocorreu uma falha inesperada. Nossa equipe foi notificada.',
-      instance: request.url,
-      code: 'INTERNAL_ERROR',
+      ...internalErr.toProblemDetails(request.url),
+      incidentId,
     });
   });
 

@@ -45,6 +45,8 @@ describe('Testes de Contrato da API REST (RFC 9457 e Zod)', async () => {
     assert.strictEqual(body.type, 'https://api.cofrinho.app/errors/validation-error');
     assert.strictEqual(body.status, 400);
     assert.strictEqual(body.code, 'VALIDATION_FAILED');
+    assert.ok(body.incidentId, 'Deve conter incidentId para rastreio');
+    assert.strictEqual(typeof body.timestamp, 'number', 'Timestamp deve ser numérico em epoch ms');
     assert.ok(Array.isArray(body.invalidParams));
     assert.ok(body.invalidParams.length > 0);
   });
@@ -62,6 +64,8 @@ describe('Testes de Contrato da API REST (RFC 9457 e Zod)', async () => {
     const body = JSON.parse(response.body);
     assert.strictEqual(body.status, 400);
     assert.strictEqual(body.code, 'VALIDATION_FAILED');
+    assert.ok(body.incidentId);
+    assert.strictEqual(typeof body.timestamp, 'number');
   });
 
   test('GET /v1/users/me sem token JWT deve retornar 401 Unauthorized', async () => {
@@ -77,6 +81,8 @@ describe('Testes de Contrato da API REST (RFC 9457 e Zod)', async () => {
     assert.strictEqual(body.type, 'https://api.cofrinho.app/errors/unauthorized');
     assert.strictEqual(body.status, 401);
     assert.strictEqual(body.code, 'UNAUTHORIZED');
+    assert.ok(body.incidentId);
+    assert.strictEqual(typeof body.timestamp, 'number');
   });
 });
 

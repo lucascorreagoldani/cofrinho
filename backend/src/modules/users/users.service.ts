@@ -1,58 +1,73 @@
 import { dbPool } from '../../database/postgres.js';
-import { AppError } from '../../shared/errors/AppError.js';
+import { NotFoundError } from '../../shared/errors/AppError.js';
 import { z } from 'zod';
 import { updatePreferencesBodySchema } from './users.schemas.js';
 
 export class UsersService {
-  async getProfile(userId: string) {
+  async getProfile(userId: number | string) {
+    const numericId = Number(userId);
+
     const result = await dbPool.query(
       `SELECT id, username, email, first_ip, last_ip, first_login, last_login, registered_at
        FROM users WHERE id = $1`,
-      [userId]
+      [numericId]
     );
 
     if (result.rows.length === 0) {
-      throw new AppError('Usuário não encontrado', 'A conta solicitada não existe.', 404, 'USER_NOT_FOUND');
+      throw new NotFoundError('A conta solicitada não existe.');
     }
 
     const row = result.rows[0];
     return {
-      ...row,
-      registered_at: row.registered_at.toISOString(),
-      first_login: row.first_login ? row.first_login.toISOString() : null,
-      last_login: row.last_login ? row.last_login.toISOString() : null,
+      id: Number(row.id),
+      username: row.username,
+      email: row.email,
+      first_ip: row.first_ip,
+      last_ip: row.last_ip,
+      first_login: row.first_login ? Number(row.first_login) : null,
+      last_login: row.last_login ? Number(row.last_login) : null,
+      registered_at: Number(row.registered_at),
     };
   }
 
-  async getPreferences(userId: string) {
+  async getPreferences(userId: number | string) {
+    const numericId = Number(userId);
+
     const result = await dbPool.query(
       `SELECT user_id, fast_login, verification, updated_at
        FROM users_preferences WHERE user_id = $1`,
-      [userId]
+      [numericId]
     );
 
     if (result.rows.length === 0) {
+      const nowTimestamp = Date.now();
       /* Cria padrão se não existir por consistência */
       const insert = await dbPool.query(
-        `INSERT INTO users_preferences (user_id, fast_login, verification)
-         VALUES ($1, true, false)
+        `INSERT INTO users_preferences (user_id, fast_login, verification, updated_at)
+         VALUES ($1, true, false, $2)
          RETURNING user_id, fast_login, verification, updated_at`,
-        [userId]
+        [numericId, nowTimestamp]
       );
       const row = insert.rows[0];
-      return { ...row, updated_at: row.updated_at.toISOString() };
+      return {
+        user_id: Number(row.user_id),
+        fast_login: row.fast_login,
+        verification: row.verification,
+        updated_at: Number(row.updated_at),
+      };
     }
 
     const row = result.rows[0];
     return {
-      user_id: row.user_id,
+      user_id: Number(row.user_id),
       fast_login: row.fast_login,
       verification: row.verification,
-      updated_at: row.updated_at.toISOString(),
+      updated_at: Number(row.updated_at),
     };
   }
 
-  async updatePreferences(userId: string, data: z.infer<typeof updatePreferencesBodySchema>) {
+  async updatePreferences(userId: number | string, data: z.infer<typeof updatePreferencesBodySchema>) {
+    const numericId = Number(userId);
     const updates: string[] = [];
     const values: any[] = [];
     let idx = 1;
@@ -67,8 +82,11 @@ export class UsersService {
       values.push(data.verification);
     }
 
-    updates.push(`updated_at = NOW()`);
-    values.push(userId);
+    const nowTimestamp = Date.now();
+    updates.push(`updated_at = $${idx++}`);
+    values.push(nowTimestamp);
+
+    values.push(numericId);
 
     const query = `
       UPDATE users_preferences
@@ -78,17 +96,22 @@ export class UsersService {
     `;
 
     const result = await dbPool.query(query, values);
+    if (result.rows.length === 0) {
+      throw new NotFoundError('Preferências não encontradas para o usuário.');
+    }
+
     const row = result.rows[0];
     return {
-      user_id: row.user_id,
+      user_id: Number(row.user_id),
       fast_login: row.fast_login,
       verification: row.verification,
-      updated_at: row.updated_at.toISOString(),
+      updated_at: Number(row.updated_at),
     };
   }
 
-  async listSessions(userId: string, currentSessionId: string, limit: number, cursor?: string) {
-    const params: any[] = [userId, limit + 1];
+  async listSessions(userId: number | string, currentSessionId: string, limit: number, cursor?: string) {
+    const numericId = Number(userId);
+    const params: any[] = [numericId, limit + 1];
     let cursorClause = '';
 
     if (cursor) {
@@ -110,9 +133,9 @@ export class UsersService {
 
     const formattedItems = items.map((row: any) => ({
       id: row.id,
-      login_time: row.login_time.toISOString(),
-      logout_time: row.logout_time ? row.logout_time.toISOString() : null,
-      duration: row.duration,
+      login_time: Number(row.login_time),
+      logout_time: row.logout_time ? Number(row.logout_time) : null,
+      duration: row.duration ? Number(row.duration) : null,
       status: row.status,
       ip: row.ip,
       user_agent: row.user_agent,
@@ -131,4 +154,3 @@ export class UsersService {
     };
   }
 }
-
