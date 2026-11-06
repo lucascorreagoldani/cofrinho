@@ -20,9 +20,8 @@ public struct NewExpenseView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     // Cabeçalho do Card
                     HStack(spacing: 8) {
-                        Image(systemName: "banknote.fill")
-                            .font(.system(size: 20))
-                            .foregroundStyle(Color.green)
+                        Text("💸")
+                            .font(.system(size: 22))
 
                         Text("Novo Gasto")
                             .font(.title3.weight(.bold))
@@ -110,9 +109,8 @@ public struct NewExpenseView: View {
                         // Coluna 1: Data
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 4) {
-                                Image(systemName: "calendar")
+                                Text("📅")
                                     .font(.caption2)
-                                    .foregroundStyle(.secondary)
                                 Text("Data")
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(.secondary)
@@ -136,15 +134,19 @@ public struct NewExpenseView: View {
                         // Coluna 2: Categoria (+ nova)
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
-                                Text("Categoria")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
+                                HStack(spacing: 4) {
+                                    Text("🏷️")
+                                        .font(.caption2)
+                                    Text("Categoria")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
                                 Spacer()
                                 Button("+ nova") {
                                     viewModel.showCreateCategorySheet = true
                                 }
                                 .font(.caption2.weight(.bold))
-                                .foregroundStyle(Color.blue)
+                                .foregroundStyle(Color(red: 0.31, green: 0.27, blue: 0.90))
                             }
 
                             Menu {
@@ -187,15 +189,19 @@ public struct NewExpenseView: View {
                         // Coluna 3: Conta (+ nova)
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
-                                Text("Conta")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
+                                HStack(spacing: 4) {
+                                    Text("💳")
+                                        .font(.caption2)
+                                    Text("Conta")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
                                 Spacer()
                                 Button("+ nova") {
                                     viewModel.showCreateAccountSheet = true
                                 }
                                 .font(.caption2.weight(.bold))
-                                .foregroundStyle(Color.blue)
+                                .foregroundStyle(Color(red: 0.31, green: 0.27, blue: 0.90))
                             }
 
                             Menu {
@@ -318,18 +324,18 @@ public struct NewExpenseView: View {
                                 ProgressView()
                                     .tint(.white)
                             } else {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 18, weight: .bold))
+                                Image(systemName: "plus")
+                                    .font(.system(size: 16, weight: .bold))
                                 Text("Adicionar Gasto")
                                     .font(.headline.weight(.bold))
                             }
                             Spacer()
                         }
-                        .frame(height: 52)
-                        .background(Color.blue)
+                        .frame(height: 50)
+                        .background(Color(red: 0.31, green: 0.27, blue: 0.90))
                         .foregroundStyle(.white)
-                        .cornerRadius(14)
-                        .shadow(color: Color.blue.opacity(0.35), radius: 8, y: 4)
+                        .cornerRadius(12)
+                        .shadow(color: Color(red: 0.31, green: 0.27, blue: 0.90).opacity(0.35), radius: 8, y: 4)
                     }
                     .disabled(viewModel.isSaving)
                     .padding(.top, 4)
