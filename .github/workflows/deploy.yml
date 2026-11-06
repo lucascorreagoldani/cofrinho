@@ -32,20 +32,23 @@ jobs:
         env:
           JWT_SECRET: "cofrinho_ci_cd_test_secret_32_characters_long_12345"
         run: |
-          echo "Instalando dependencias do backend..."
+          echo "⚡ Instalando dependencias do backend..."
           cd backend
           npm ci
-          echo "Executando testes unitarios e validacoes RFC 9457..."
+          echo "🧪 Executando testes unitarios e validacoes RFC 9457..."
           npm test
-          echo "Compilando aplicacao TypeScript com tsup..."
+          echo "🔨 Compilando aplicacao TypeScript com tsup..."
           npm run build
+          echo "✂️ Podando dependencias de desenvolvimento..."
+          npm prune --omit=dev
 
       - name: Empacotar Artefatos de Produção
         run: |
-          echo "Empacotando aplicacao para deploy..."
+          echo "📦 Empacotando aplicacao para deploy..."
           tar -czf cofrinho.tar.gz \
             backend/dist/ \
             backend/src/database/schema.sql \
+            backend/node_modules/ \
             backend/package*.json \
             backend/Dockerfile \
             backend/.env.example \
@@ -98,7 +101,7 @@ jobs:
 
       - name: Transferir Pacote para a VPS
         run: |
-          echo "Enviando pacote para o host remoto..."
+          echo "🚀 Enviando pacote para o host remoto..."
           scp cofrinho.tar.gz vps:/tmp/
 
       - name: Orquestrar e Iniciar Containers no Docker
@@ -117,7 +120,7 @@ jobs:
             fi
 
             echo "Subindo containers via Docker Compose..."
-            (docker compose up -d --build --remove-orphans || docker-compose up -d --build --remove-orphans)
+            docker compose up -d --build --remove-orphans
 
             echo "Limpando imagens orfas..."
             docker image prune -f
