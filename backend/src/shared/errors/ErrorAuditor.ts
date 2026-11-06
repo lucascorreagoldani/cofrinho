@@ -99,3 +99,4 @@ export class ErrorAuditor {
     return incidentId;
   }
 }
+
