@@ -18,8 +18,12 @@ targets:
         CFBundleDisplayName: "Cofrinho"
         UILaunchScreen: {}
         UIRequiresFullScreen: true
+        NSFaceIDUsageDescription: "O Cofrinho utiliza o Face ID para proteger seus dados financeiros e manter seu acesso seguro."
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+    scheme:
+      testTargets:
+        - CofrinhoTests
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lucas.cofrinho.CofrinhoApp
@@ -49,4 +53,5 @@ targets:
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
+        GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_STYLE: Automatic
