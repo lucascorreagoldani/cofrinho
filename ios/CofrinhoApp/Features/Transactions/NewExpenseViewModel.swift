@@ -114,31 +114,38 @@ public final class NewExpenseViewModel {
         isLoading = true
         defer { isLoading = false }
 
-        async let fetchCats = categoriesAPI.listCategories(token: token)
-        async let fetchAccs = accountsAPI.listAccounts(token: token)
-        async let fetchSugg = transactionsAPI.getSuggestions(token: token)
-
+        // Carrega categorias de forma resiliente
         do {
-            let (loadedCats, loadedAccs, loadedSugg) = try await (fetchCats, fetchAccs, fetchSugg)
+            let loadedCats = try await categoriesAPI.listCategories(token: token)
             self.categories = loadedCats
-            self.accounts = loadedAccs
-            self.allSuggestions = loadedSugg
-            self.filteredSuggestions = loadedSugg
-
             if selectedCategory == nil, let firstCat = loadedCats.first {
                 selectedCategory = firstCat
             }
+            AppLogger.shared.info("Categorias carregadas com sucesso (\(loadedCats.count)).", category: .network)
+        } catch {
+            AppLogger.shared.warning("Falha ao carregar categorias no startup: \(error.localizedDescription)", category: .network)
+        }
+
+        // Carrega contas de forma resiliente
+        do {
+            let loadedAccs = try await accountsAPI.listAccounts(token: token)
+            self.accounts = loadedAccs
             if selectedAccount == nil, let firstAcc = loadedAccs.first {
                 selectedAccount = firstAcc
             }
-            AppLogger.shared.info("Dados de categorias (\(loadedCats.count)) e contas (\(loadedAccs.count)) carregados.", category: .network)
-        } catch let err as any AppErrorProtocol {
-            self.activeError = err
-            AppLogger.shared.error("Erro ao carregar dados do formulário: \(err.errorDescription ?? err.localizedDescription)", category: .network)
+            AppLogger.shared.info("Contas carregadas com sucesso (\(loadedAccs.count)).", category: .network)
         } catch {
-            let netErr = NetworkError.unknown(reason: error.localizedDescription)
-            self.activeError = netErr
-            AppLogger.shared.error("Erro ao carregar dados do formulário: \(error.localizedDescription)", category: .network)
+            AppLogger.shared.warning("Falha ao carregar contas no startup: \(error.localizedDescription)", category: .network)
+        }
+
+        // Carrega sugestões de gastos frequentes
+        do {
+            let loadedSugg = try await transactionsAPI.getSuggestions(token: token)
+            self.allSuggestions = loadedSugg
+            self.filteredSuggestions = loadedSugg
+            AppLogger.shared.info("Sugestões de histórico carregadas (\(loadedSugg.count)).", category: .network)
+        } catch {
+            AppLogger.shared.warning("Falha ao buscar sugestões no startup: \(error.localizedDescription)", category: .network)
         }
     }
 

@@ -11,6 +11,11 @@ import { problemDetailsSchema } from '../auth/auth.schemas.js';
 
 const accountsService = new AccountsService();
 
+function getUserId(request: any): number {
+  const user = request.user as { userId?: number; sub?: string } | undefined;
+  return user?.userId ? Number(user.userId) : Number(user?.sub);
+}
+
 export const accountsRoutes: FastifyPluginAsyncZod = async (app) => {
   /* Hook de Autenticação JWT */
   app.addHook('onRequest', async (request, reply) => {
@@ -44,9 +49,9 @@ export const accountsRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
+      const userId = getUserId(request);
       const accounts = await accountsService.listAccounts(
-        userPayload.userId,
+        userId,
         request.query.include_hidden
       );
       return reply.status(200).send(accounts);
@@ -69,8 +74,8 @@ export const accountsRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
-      const account = await accountsService.createAccount(userPayload.userId, request.body);
+      const userId = getUserId(request);
+      const account = await accountsService.createAccount(userId, request.body);
       return reply.status(201).send(account);
     }
   );
@@ -92,9 +97,9 @@ export const accountsRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
+      const userId = getUserId(request);
       const updated = await accountsService.updateAccount(
-        userPayload.userId,
+        userId,
         request.params.id,
         request.body
       );
@@ -117,8 +122,8 @@ export const accountsRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
-      await accountsService.deleteAccount(userPayload.userId, request.params.id);
+      const userId = getUserId(request);
+      await accountsService.deleteAccount(userId, request.params.id);
       return reply.status(204).send(null);
     }
   );
@@ -138,8 +143,8 @@ export const accountsRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
-      const result = await accountsService.toggleAccountVisibility(userPayload.userId, request.params.id);
+      const userId = getUserId(request);
+      const result = await accountsService.toggleAccountVisibility(userId, request.params.id);
       return reply.status(200).send(result);
     }
   );

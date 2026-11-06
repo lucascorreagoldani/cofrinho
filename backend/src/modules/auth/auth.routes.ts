@@ -155,6 +155,7 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
         const newAccessToken = app.jwt.sign(
           {
             sub: decoded.sub,
+            userId: Number(decoded.sub),
             sessionId: decoded.sessionId,
           },
           { expiresIn: '15m' }

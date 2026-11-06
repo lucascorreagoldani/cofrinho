@@ -45,7 +45,14 @@ export class CategoriesService {
     /* 3. Se o usuário ainda não tiver categorias cadastradas, faz o seed canônico */
     if (result.rows.length === 0) {
       await this.seedCanonicalCategories(userId);
-      return this.listCategories(userId, includeHidden);
+      const secondCheck = await dbPool.query(
+        `SELECT id, user_id, name, icon, color, is_default, status, created_at, updated_at
+         FROM categories
+         WHERE user_id = $1 AND status = ANY($2::varchar[])
+         ORDER BY is_default DESC, name ASC`,
+        [userId, statuses]
+      );
+      return secondCheck.rows.map((row) => this.mapCategoryRow(row));
     }
 
     const categories = result.rows.map((row) => ({

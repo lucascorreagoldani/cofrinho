@@ -45,7 +45,14 @@ export class AccountsService {
     /* 3. Se não houver contas, executa seed canônico */
     if (result.rows.length === 0) {
       await this.seedCanonicalAccounts(userId);
-      return this.listAccounts(userId, includeHidden);
+      const secondCheck = await dbPool.query(
+        `SELECT id, user_id, name, type, icon, color, allows_installments, closing_day, due_day, status, created_at, updated_at
+         FROM accounts
+         WHERE user_id = $1 AND status = ANY($2::varchar[])
+         ORDER BY allows_installments DESC, name ASC`,
+        [userId, statuses]
+      );
+      return secondCheck.rows.map((row) => this.mapAccountRow(row));
     }
 
     const accounts = result.rows.map((row) => this.mapAccountRow(row));

@@ -11,6 +11,11 @@ import { problemDetailsSchema } from '../auth/auth.schemas.js';
 
 const categoriesService = new CategoriesService();
 
+function getUserId(request: any): number {
+  const user = request.user as { userId?: number; sub?: string } | undefined;
+  return user?.userId ? Number(user.userId) : Number(user?.sub);
+}
+
 export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
   /* Hook de Autenticação JWT */
   app.addHook('onRequest', async (request, reply) => {
@@ -44,9 +49,9 @@ export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
+      const userId = getUserId(request);
       const categories = await categoriesService.listCategories(
-        userPayload.userId,
+        userId,
         request.query.include_hidden
       );
       return reply.status(200).send(categories);
@@ -69,8 +74,8 @@ export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
-      const category = await categoriesService.createCategory(userPayload.userId, request.body);
+      const userId = getUserId(request);
+      const category = await categoriesService.createCategory(userId, request.body);
       return reply.status(201).send(category);
     }
   );
@@ -92,9 +97,9 @@ export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
+      const userId = getUserId(request);
       const updated = await categoriesService.updateCategory(
-        userPayload.userId,
+        userId,
         request.params.id,
         request.body
       );
@@ -117,8 +122,8 @@ export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
-      await categoriesService.deleteCategory(userPayload.userId, request.params.id);
+      const userId = getUserId(request);
+      await categoriesService.deleteCategory(userId, request.params.id);
       return reply.status(204).send(null);
     }
   );

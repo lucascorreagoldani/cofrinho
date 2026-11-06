@@ -13,6 +13,11 @@ import { problemDetailsSchema } from '../auth/auth.schemas.js';
 
 const transactionsService = new TransactionsService();
 
+function getUserId(request: any): number {
+  const user = request.user as { userId?: number; sub?: string } | undefined;
+  return user?.userId ? Number(user.userId) : Number(user?.sub);
+}
+
 export const transactionsRoutes: FastifyPluginAsyncZod = async (app) => {
   /* Hook de Autenticação JWT */
   app.addHook('onRequest', async (request, reply) => {
@@ -46,9 +51,9 @@ export const transactionsRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
+      const userId = getUserId(request);
       const transactions = await transactionsService.listTransactions(
-        userPayload.userId,
+        userId,
         request.query
       );
       return reply.status(200).send(transactions);
@@ -72,9 +77,9 @@ export const transactionsRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
+      const userId = getUserId(request);
       const suggestions = await transactionsService.getSuggestions(
-        userPayload.userId,
+        userId,
         request.query.q
       );
       return reply.status(200).send(suggestions);
@@ -97,9 +102,9 @@ export const transactionsRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
+      const userId = getUserId(request);
       const transaction = await transactionsService.createTransaction(
-        userPayload.userId,
+        userId,
         request.body
       );
       return reply.status(201).send(transaction);
@@ -123,9 +128,9 @@ export const transactionsRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
+      const userId = getUserId(request);
       const updated = await transactionsService.updateTransaction(
-        userPayload.userId,
+        userId,
         request.params.id,
         request.body
       );
@@ -149,9 +154,9 @@ export const transactionsRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
+      const userId = getUserId(request);
       const result = await transactionsService.deleteTransaction(
-        userPayload.userId,
+        userId,
         request.params.id,
         request.query.cascade
       );
@@ -174,9 +179,9 @@ export const transactionsRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userPayload = request.user as { userId: number };
+      const userId = getUserId(request);
       const toggled = await transactionsService.toggleTransactionVisibility(
-        userPayload.userId,
+        userId,
         request.params.id
       );
       return reply.status(200).send(toggled);
