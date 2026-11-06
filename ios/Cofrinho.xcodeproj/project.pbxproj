@@ -1,0 +1,504 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		01AB8D39219004C9F6F0785D /* CofrinhoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F81FC403314BD30C20D1BC /* CofrinhoApp.swift */; };
+		1C3F10BF94E3B68712A45A32 /* AppErrorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 811079180079BD47AD61FEF7 /* AppErrorProtocol.swift */; };
+		297066F55DF106707D4414B6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42988F2B01589D33F1523016 /* ContentView.swift */; };
+		4A4707C5D12767E73D5DE726 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 86A95467C779F02131288CB5 /* Assets.xcassets */; };
+		869E6CE9FC96A01A493C53BD /* ValidationError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A84FC8B1914A7206DB3F7A3 /* ValidationError.swift */; };
+		8A25BDF7F9E67B6604EA1B9E /* DatabaseError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5410D93F51B84FB656AE534F /* DatabaseError.swift */; };
+		ABF433990EE7D63CCEB89E05 /* ErrorAndLoggingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 871D93BE9BE65017AF3990CD /* ErrorAndLoggingTests.swift */; };
+		ACA5D6F01D773B88243D3D8D /* View+ErrorAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79076718ACF1003795F0F8A6 /* View+ErrorAlert.swift */; };
+		B0DA2D3DDBA010ADFFF979D3 /* SecurityError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5516B56B2C52B20BEBE30004 /* SecurityError.swift */; };
+		B158F74A0B0A34C221A74B7E /* NetworkError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 423194BBE6698E54893E3638 /* NetworkError.swift */; };
+		C702BD3296A5AF3C88CCB3CE /* LogCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AB2BB6CC7B86E417119ED77 /* LogCategory.swift */; };
+		E05EC1964B3E623F96C4CFC7 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E5EBB644BAA4E87B5BFC2C /* AppLogger.swift */; };
+		FAB16817C6A9DD53CA53B936 /* LogServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8808C68DDB8BEB5C6DA07BD /* LogServiceProtocol.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A9D1ED75E8F46339C6CDA1A1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FFE4E8A4AA809941EB11D4FD /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DC3FF1B64A52E75B95454603;
+			remoteInfo = Cofrinho;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		423194BBE6698E54893E3638 /* NetworkError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkError.swift; sourceTree = "<group>"; };
+		42988F2B01589D33F1523016 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		44E5EBB644BAA4E87B5BFC2C /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
+		5410D93F51B84FB656AE534F /* DatabaseError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseError.swift; sourceTree = "<group>"; };
+		5516B56B2C52B20BEBE30004 /* SecurityError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityError.swift; sourceTree = "<group>"; };
+		5AB2BB6CC7B86E417119ED77 /* LogCategory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogCategory.swift; sourceTree = "<group>"; };
+		79076718ACF1003795F0F8A6 /* View+ErrorAlert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+ErrorAlert.swift"; sourceTree = "<group>"; };
+		7A84FC8B1914A7206DB3F7A3 /* ValidationError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidationError.swift; sourceTree = "<group>"; };
+		811079180079BD47AD61FEF7 /* AppErrorProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppErrorProtocol.swift; sourceTree = "<group>"; };
+		86A95467C779F02131288CB5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		871D93BE9BE65017AF3990CD /* ErrorAndLoggingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorAndLoggingTests.swift; sourceTree = "<group>"; };
+		87F827B1B4B91FC594423015 /* CofrinhoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CofrinhoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		92CCA8981E0D4050DBD21296 /* Cofrinho.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cofrinho.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D6BCA81EA531DE82480CC13C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		D8808C68DDB8BEB5C6DA07BD /* LogServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogServiceProtocol.swift; sourceTree = "<group>"; };
+		F8F81FC403314BD30C20D1BC /* CofrinhoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CofrinhoApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		27A98915E0D550642720CC72 /* Logging */ = {
+			isa = PBXGroup;
+			children = (
+				44E5EBB644BAA4E87B5BFC2C /* AppLogger.swift */,
+				5AB2BB6CC7B86E417119ED77 /* LogCategory.swift */,
+				D8808C68DDB8BEB5C6DA07BD /* LogServiceProtocol.swift */,
+			);
+			path = Logging;
+			sourceTree = "<group>";
+		};
+		339E48BC33A0B10E536DD5FB /* Errors */ = {
+			isa = PBXGroup;
+			children = (
+				811079180079BD47AD61FEF7 /* AppErrorProtocol.swift */,
+				5410D93F51B84FB656AE534F /* DatabaseError.swift */,
+				423194BBE6698E54893E3638 /* NetworkError.swift */,
+				5516B56B2C52B20BEBE30004 /* SecurityError.swift */,
+				7A84FC8B1914A7206DB3F7A3 /* ValidationError.swift */,
+			);
+			path = Errors;
+			sourceTree = "<group>";
+		};
+		38C195D02F325E236AD0E5F2 /* CofrinhoApp */ = {
+			isa = PBXGroup;
+			children = (
+				86A95467C779F02131288CB5 /* Assets.xcassets */,
+				F8F81FC403314BD30C20D1BC /* CofrinhoApp.swift */,
+				42988F2B01589D33F1523016 /* ContentView.swift */,
+				D6BCA81EA531DE82480CC13C /* Info.plist */,
+				5FDA0DA11E1BEEF21B7EAF42 /* Core */,
+			);
+			path = CofrinhoApp;
+			sourceTree = "<group>";
+		};
+		508899FDB5C4F62EB0DA8294 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				92CCA8981E0D4050DBD21296 /* Cofrinho.app */,
+				87F827B1B4B91FC594423015 /* CofrinhoTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		5FDA0DA11E1BEEF21B7EAF42 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				339E48BC33A0B10E536DD5FB /* Errors */,
+				723BF055F1DA2447FD6D6064 /* Extensions */,
+				27A98915E0D550642720CC72 /* Logging */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		723BF055F1DA2447FD6D6064 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				79076718ACF1003795F0F8A6 /* View+ErrorAlert.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		C6870DE2DA88CD5C2B78F946 /* CofrinhoTests */ = {
+			isa = PBXGroup;
+			children = (
+				871D93BE9BE65017AF3990CD /* ErrorAndLoggingTests.swift */,
+			);
+			path = CofrinhoTests;
+			sourceTree = "<group>";
+		};
+		CDE3E4F6465C413486BCE641 = {
+			isa = PBXGroup;
+			children = (
+				38C195D02F325E236AD0E5F2 /* CofrinhoApp */,
+				C6870DE2DA88CD5C2B78F946 /* CofrinhoTests */,
+				508899FDB5C4F62EB0DA8294 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		4A2C0C33F0FE5C9170A516BE /* CofrinhoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7928F2E21409F29F11FBB5A1 /* Build configuration list for PBXNativeTarget "CofrinhoTests" */;
+			buildPhases = (
+				563DA8782DACE21F920A2E0F /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5065E605C0C6D9AABE0CBE79 /* PBXTargetDependency */,
+			);
+			name = CofrinhoTests;
+			packageProductDependencies = (
+			);
+			productName = CofrinhoTests;
+			productReference = 87F827B1B4B91FC594423015 /* CofrinhoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		DC3FF1B64A52E75B95454603 /* Cofrinho */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5C6FE889107D400330621E93 /* Build configuration list for PBXNativeTarget "Cofrinho" */;
+			buildPhases = (
+				B298AC0A7223FB19579FBF9E /* Sources */,
+				B5042F1C36964CC953A7B032 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Cofrinho;
+			packageProductDependencies = (
+			);
+			productName = Cofrinho;
+			productReference = 92CCA8981E0D4050DBD21296 /* Cofrinho.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		FFE4E8A4AA809941EB11D4FD /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					4A2C0C33F0FE5C9170A516BE = {
+						ProvisioningStyle = Automatic;
+					};
+					DC3FF1B64A52E75B95454603 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = FDD689327B367FBDC1B7F964 /* Build configuration list for PBXProject "Cofrinho" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = CDE3E4F6465C413486BCE641;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 508899FDB5C4F62EB0DA8294 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DC3FF1B64A52E75B95454603 /* Cofrinho */,
+				4A2C0C33F0FE5C9170A516BE /* CofrinhoTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		B5042F1C36964CC953A7B032 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A4707C5D12767E73D5DE726 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		563DA8782DACE21F920A2E0F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ABF433990EE7D63CCEB89E05 /* ErrorAndLoggingTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B298AC0A7223FB19579FBF9E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1C3F10BF94E3B68712A45A32 /* AppErrorProtocol.swift in Sources */,
+				E05EC1964B3E623F96C4CFC7 /* AppLogger.swift in Sources */,
+				01AB8D39219004C9F6F0785D /* CofrinhoApp.swift in Sources */,
+				297066F55DF106707D4414B6 /* ContentView.swift in Sources */,
+				8A25BDF7F9E67B6604EA1B9E /* DatabaseError.swift in Sources */,
+				C702BD3296A5AF3C88CCB3CE /* LogCategory.swift in Sources */,
+				FAB16817C6A9DD53CA53B936 /* LogServiceProtocol.swift in Sources */,
+				B158F74A0B0A34C221A74B7E /* NetworkError.swift in Sources */,
+				B0DA2D3DDBA010ADFFF979D3 /* SecurityError.swift in Sources */,
+				869E6CE9FC96A01A493C53BD /* ValidationError.swift in Sources */,
+				ACA5D6F01D773B88243D3D8D /* View+ErrorAlert.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5065E605C0C6D9AABE0CBE79 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DC3FF1B64A52E75B95454603 /* Cofrinho */;
+			targetProxy = A9D1ED75E8F46339C6CDA1A1 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		223C163E6BBEAF93F548B6BD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				INFOPLIST_FILE = CofrinhoApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lucas.cofrinho.CofrinhoApp;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4710DAA07A3645E213F0CAB8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				INFOPLIST_FILE = CofrinhoApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lucas.cofrinho.CofrinhoApp;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		4C5AA51C763C2F9C42F05528 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		C89A555E76D0657B29A708D7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lucas.cofrinho.CofrinhoTests;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cofrinho.app/Cofrinho";
+			};
+			name = Release;
+		};
+		FB8BC3B09D89D78015DD0CA7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		FD520F65118393244EA0B177 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.lucas.cofrinho.CofrinhoTests;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cofrinho.app/Cofrinho";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5C6FE889107D400330621E93 /* Build configuration list for PBXNativeTarget "Cofrinho" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				223C163E6BBEAF93F548B6BD /* Debug */,
+				4710DAA07A3645E213F0CAB8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7928F2E21409F29F11FBB5A1 /* Build configuration list for PBXNativeTarget "CofrinhoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FD520F65118393244EA0B177 /* Debug */,
+				C89A555E76D0657B29A708D7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		FDD689327B367FBDC1B7F964 /* Build configuration list for PBXProject "Cofrinho" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4C5AA51C763C2F9C42F05528 /* Debug */,
+				FB8BC3B09D89D78015DD0CA7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = FFE4E8A4AA809941EB11D4FD /* Project object */;
+}

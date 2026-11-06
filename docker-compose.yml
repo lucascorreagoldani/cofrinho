@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # =============================================================================
+  # COFRINHO API - SERVIÇO FASTIFY BACKEND
+  # =============================================================================
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cofrinho-api
+    restart: always
+    # =========================================================================
+    # PORTA API ALTERADA: "3333:3000" (Porta default: "3000:3000")
+    # Motivo: Evitar conflito com os serviços existentes do KowaMC (Panel e Grafana)
+    # na VPS, que já operam e escutam na porta 3000.
+    # A API do Cofrinho pode ser acessada externamente em http://<IP>:3333.
+    # Para restaurar a porta padrão posteriormente, altere para "3000:3000".
+    # =========================================================================
+    ports:
+      - "3333:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cofrinho}:${POSTGRES_PASSWORD:-cofrinho_secret}@postgres:5432/${POSTGRES_DB:-cofrinho_db}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-cofrinho_super_secret_jwt_production_key_123456789}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      REFRESH_TOKEN_EXPIRES_IN: ${REFRESH_TOKEN_EXPIRES_IN:-7d}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cofrinho_network
+
+  # =============================================================================
+  # BANCO DE DADOS POSTGRESQL (DEDICADO AO COFRINHO)
+  # =============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: cofrinho-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cofrinho}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cofrinho_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-cofrinho_db}
+    # =========================================================================
+    # PORTA POSTGRESQL ALTERADA: "5433:5432" (Porta default: "5432:5432")
+    # Motivo: Evitar conflito com a instância PostgreSQL do KowaMC na VPS,
+    # que já utiliza a porta 5432 no host. Internamente na rede Docker do
+    # Cofrinho continua na porta 5432.
+    # Para restaurar a porta padrão posteriormente, altere para "5432:5432".
+    # =========================================================================
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/src/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cofrinho} -d ${POSTGRES_DB:-cofrinho_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cofrinho_network
+
+  # =============================================================================
+  # CACHE & SESSÕES REDIS (DEDICADO AO COFRINHO)
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: cofrinho-redis
+    restart: always
+    # =========================================================================
+    # PORTA REDIS ALTERADA: "6380:6379" (Porta default: "6379:6379")
+    # Motivo: Evitar incompatibilidade/conflito com o Redis existente do KowaMC
+    # na VPS (o KowaMC roda na porta host 6379:6379 com o container db_redis).
+    # O Cofrinho utiliza este container dedicado para cache e sessões rápidas (<1ms).
+    # Internamente na rede cofrinho_network o serviço se conecta em redis:6379.
+    # Para restaurar a porta default posteriormente, altere para "6379:6379".
+    # =========================================================================
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cofrinho_network
+
+networks:
+  cofrinho_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

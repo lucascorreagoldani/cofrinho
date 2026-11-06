@@ -1,0 +1,123 @@
+name: Deploy Cofrinho to VPS
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # =========================================================================
+  # 1. COMPILAÇÃO, TESTES E VALIDAÇÃO DOS ARTEFATOS
+  # =========================================================================
+  build-and-validate:
+    name: Build & Testes
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar Dependências e Executar Testes
+        run: |
+          echo "⚡ Instalando dependências do backend..."
+          cd backend
+          npm ci
+          echo "🧪 Executando testes unitários e validações RFC 9457..."
+          npm test
+          echo "🔨 Compilando aplicação TypeScript com tsup..."
+          npm run build
+
+      - name: Empacotar Artefatos de Produção
+        run: |
+          echo "📦 Empacotando aplicação para deploy..."
+          tar -czf cofrinho.tar.gz \
+            backend/dist/ \
+            backend/src/database/schema.sql \
+            backend/package*.json \
+            backend/Dockerfile \
+            backend/.env.example \
+            docker-compose.yml
+
+      - name: Salvar Artefatos para Deploy
+        uses: actions/upload-artifact@v4
+        with:
+          name: cofrinho-artifacts
+          path: cofrinho.tar.gz
+          retention-days: 1
+
+  # =========================================================================
+  # 2. DEPLOY NA VPS (HOST RYZEN DO ECOSSISTEMA KOWAMC)
+  # =========================================================================
+  deploy-vps:
+    name: Deploy na VPS (Ryzen)
+    needs: build-and-validate
+    runs-on: ubuntu-latest
+    if: ${{ always() && (needs.build-and-validate.result == 'success') }}
+
+    steps:
+      - name: Baixar Artefatos Compilados
+        uses: actions/download-artifact@v4
+        with:
+          name: cofrinho-artifacts
+
+      - name: Configurar Chave SSH da VPS
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEV_RYZEN_SSH_KEY || secrets.DEV_VPS_SSH_KEY || secrets.RYZEN_SSH_KEY || secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+
+          cat <<EOF > ~/.ssh/config
+          Host vps
+              HostName ${{ secrets.DEV_RYZEN_IP || secrets.DEV_VPS_IP || secrets.RYZEN_IP || secrets.VPS_IP || '198.89.99.42' }}
+              User root
+              IdentityFile ~/.ssh/vps_key
+              StrictHostKeyChecking no
+              UserKnownHostsFile /dev/null
+              ConnectTimeout 20
+              ServerAliveInterval 15
+              ServerAliveCountMax 3
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Transferir Pacote para a VPS
+        run: |
+          echo "🚀 Enviando pacote para o host remoto..."
+          scp cofrinho.tar.gz vps:/tmp/
+
+      - name: Orquestrar e Iniciar Containers no Docker
+        run: |
+          ssh vps \
+            "
+            set -e &&
+            echo '📂 Preparando diretório /opt/cofrinho...' &&
+            mkdir -p /opt/cofrinho &&
+            tar -xzf /tmp/cofrinho.tar.gz -C /opt/cofrinho &&
+            rm -f /tmp/cofrinho.tar.gz &&
+            cd /opt/cofrinho &&
+            
+            # Se não existir .env no host, inicializa com base no .env.example
+            if [ ! -f .env ]; then
+              echo '⚙️ Inicializando arquivo .env a partir de backend/.env.example...' &&
+              cp backend/.env.example .env 2>/dev/null || true
+            fi &&
+
+            echo '🐳 Subindo containers via Docker Compose...' &&
+            (docker compose up -d --build --remove-orphans || docker-compose up -d --build --remove-orphans) &&
+            
+            echo '🧹 Limpando imagens órfãs...' &&
+            docker image prune -f &&
+
+            echo '🔍 Verificando status dos containers...' &&
+            docker ps --filter 'name=cofrinho'
+            "
