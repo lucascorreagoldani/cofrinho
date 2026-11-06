@@ -182,18 +182,24 @@ public final class AuthAPIService: @unchecked Sendable {
             }
 
             if !(200...299).contains(httpResponse.statusCode) {
-                // Tenta decodificar Problem Details RFC 9457
-                if let problem = try? JSONDecoder().decode(ProblemDetailsDTO.self, from: data) {
-                    let msg = problem.detail ?? problem.title ?? "Erro na requisição"
-                    throw NetworkError.serverError(statusCode: httpResponse.statusCode, message: msg)
-                } else {
-                    throw NetworkError.serverError(statusCode: httpResponse.statusCode, message: "Erro \(httpResponse.statusCode)")
+                let problem = try? JSONDecoder().decode(ProblemDetailsDTO.self, from: data)
+                let msg = problem?.detail ?? problem?.title ?? "Erro na requisição"
+
+                switch httpResponse.statusCode {
+                case 401:
+                    throw AuthError.invalidCredentials
+                case 409:
+                    throw AuthError.accountAlreadyExists(detail: msg)
+                case 400:
+                    throw AuthError.serverError(message: msg, incidentId: problem?.incidentId)
+                default:
+                    throw AuthError.serverError(message: msg, incidentId: problem?.incidentId)
                 }
             }
 
             let decoder = JSONDecoder()
             return try decoder.decode(T.self, from: data)
-        } catch let err as NetworkError {
+        } catch let err as any AppErrorProtocol {
             throw err
         } catch let urlErr as URLError {
             if urlErr.code == .notConnectedToInternet || urlErr.code == .cannotConnectToHost {
