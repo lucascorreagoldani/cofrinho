@@ -4,7 +4,6 @@ import SwiftUI
 public struct ProfileView: View {
     @Bindable var viewModel: AuthViewModel
     @State private var showLogoutConfirmation = false
-    @State private var showServerConfig = false
 
     public init(viewModel: AuthViewModel) {
         self.viewModel = viewModel
@@ -31,9 +30,6 @@ public struct ProfileView: View {
             .listStyle(.insetGrouped)
             .navigationTitle("Meu Perfil")
             .handleAnyAppError($viewModel.activeError)
-            .sheet(isPresented: $showServerConfig) {
-                ServerConfigSheet()
-            }
             .confirmationDialog(
                 "Deseja realmente sair da sua conta?",
                 isPresented: $showLogoutConfirmation,
@@ -173,28 +169,23 @@ public struct ProfileView: View {
 
     private var networkSection: some View {
         Section("Conexão & Nuvem") {
-            Button {
-                showServerConfig = true
-            } label: {
-                HStack {
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Servidor da API")
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                            Text(AuthAPIService.shared.baseURL.absoluteString)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    } icon: {
-                        Image(systemName: "network")
-                            .foregroundStyle(Color.orange)
+            HStack {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Servidor de Produção VPS")
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                        Text("Host Ryzen Dedicado (198.89.99.42:3333)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.footnote.bold())
-                        .foregroundStyle(.tertiary)
+                } icon: {
+                    Image(systemName: "cloud.fill")
+                        .foregroundStyle(Color.green)
                 }
+                Spacer()
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(Color.green)
             }
         }
     }

@@ -56,15 +56,86 @@ public struct AuthSessionDTO: Codable, Sendable {
     }
 }
 
-public struct LoginResponseDTO: Codable, Sendable {
+public struct LoginResponseDTO: Decodable, Sendable {
+    public let accessToken: String
+    public let refreshToken: String?
+    public let tokenType: String?
+    public let expiresIn: Int?
     public let user: UserProfileDTO
     public let session: AuthSessionDTO
-    public let token: String
+
+    public var token: String { accessToken }
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case tokenType = "token_type"
+        case expiresIn = "expires_in"
+        case user
+        case session
+        case token
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.user = try container.decode(UserProfileDTO.self, forKey: .user)
+        self.session = try container.decode(AuthSessionDTO.self, forKey: .session)
+        self.refreshToken = try container.decodeIfPresent(String.self, forKey: .refreshToken)
+        self.tokenType = try container.decodeIfPresent(String.self, forKey: .tokenType)
+        self.expiresIn = try container.decodeIfPresent(Int.self, forKey: .expiresIn)
+
+        if let access = try container.decodeIfPresent(String.self, forKey: .accessToken) {
+            self.accessToken = access
+        } else if let legacy = try container.decodeIfPresent(String.self, forKey: .token) {
+            self.accessToken = legacy
+        } else {
+            throw DecodingError.keyNotFound(
+                CodingKeys.accessToken,
+                DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Token de acesso ausente na resposta da API")
+            )
+        }
+    }
 }
 
-public struct RegisterResponseDTO: Codable, Sendable {
-    public let message: String
+public struct RegisterResponseDTO: Decodable, Sendable {
     public let user: UserProfileDTO
+    public let message: String?
+
+    public init(user: UserProfileDTO, message: String? = nil) {
+        self.user = user
+        self.message = message
+    }
+
+    public init(from decoder: Decoder) throws {
+        // Suporta resposta direta do Fastify (retorna o UserProfileDTO direto no 201 Created)
+        if let directUser = try? UserProfileDTO(from: decoder) {
+            self.user = directUser
+            self.message = "Conta criada com sucesso"
+            return
+        }
+
+        // Suporta resposta envelopada com { user, message }
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.user = try container.decode(UserProfileDTO.self, forKey: .user)
+        self.message = try container.decodeIfPresent(String.self, forKey: .message)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case user
+        case message
+    }
+}
+
+public struct TokenRefreshResponseDTO: Decodable, Sendable {
+    public let accessToken: String
+    public let tokenType: String
+    public let expiresIn: Int
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case tokenType = "token_type"
+        case expiresIn = "expires_in"
+    }
 }
 
 public struct ProblemDetailsDTO: Codable, Sendable {
@@ -78,47 +149,19 @@ public struct ProblemDetailsDTO: Codable, Sendable {
 }
 
 /// Cliente de rede para os serviços de autenticação e preferências da API do Cofrinho.
+/// Conecta-se exclusivamente ao backend de produção na VPS dedicada (198.89.99.42:3333).
 public final class AuthAPIService: @unchecked Sendable {
     public static let shared = AuthAPIService()
 
-    private let baseURLStorageKey = "cofrinho_api_base_url"
-
-    /// Servidores predefinidos para facilitar testes e alternância entre VPS e Rede Local.
-    public static let presetServers: [(name: String, url: String)] = [
-        ("VPS Host Ryzen (Nuvem)", "http://198.89.99.42:3333"),
-        ("Mac Dev Local (Wi-Fi)", "http://192.168.0.6:3333"),
-        ("Localhost (Simulador)", "http://127.0.0.1:3333")
-    ]
-
-    /// URL base da API (Porta 3333 no host conforme topologia padrão)
-    public var baseURL: URL {
-        get {
-            if let saved = UserDefaults.standard.string(forKey: baseURLStorageKey),
-               let url = URL(string: saved) {
-                return url
-            }
-            #if targetEnvironment(simulator)
-            return URL(string: "http://127.0.0.1:3333")!
-            #else
-            // No iPhone físico, o IP da máquina do desenvolvedor na Wi-Fi é o padrão mais direto
-            return URL(string: "http://192.168.0.6:3333")!
-            #endif
-        }
-        set {
-            UserDefaults.standard.set(newValue.absoluteString, forKey: baseURLStorageKey)
-        }
-    }
+    /// URL canônica e exclusiva da API do Cofrinho na VPS Host Ryzen (porta 3333 no host).
+    public let baseURL: URL = URL(string: "http://198.89.99.42:3333")!
 
     private let session: URLSession
 
     public init(session: URLSession = .shared) {
         self.session = session
-    }
-
-    public func setBaseURLString(_ urlString: String) {
-        if let url = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            self.baseURL = url
-        }
+        // Limpa qualquer resquício de URL local ou alternativa salva anteriormente
+        UserDefaults.standard.removeObject(forKey: "cofrinho_api_base_url")
     }
 
     // MARK: - Autenticação
@@ -151,6 +194,21 @@ public final class AuthAPIService: @unchecked Sendable {
             "login": login,
             "password": password,
             "fast_login": fastLogin
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
+
+        return try await performRequest(request)
+    }
+
+    public func refreshToken(refreshToken: String) async throws -> TokenRefreshResponseDTO {
+        let endpoint = baseURL.appendingPathComponent("/v1/auth/refresh")
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 10
+
+        let payload = [
+            "refresh_token": refreshToken
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
@@ -224,7 +282,11 @@ public final class AuthAPIService: @unchecked Sendable {
 
                 switch httpResponse.statusCode {
                 case 401:
-                    throw AuthError.invalidCredentials
+                    if request.url?.path.contains("/login") == true {
+                        throw AuthError.invalidCredentials
+                    } else {
+                        throw AuthError.unauthorized
+                    }
                 case 409:
                     throw AuthError.accountAlreadyExists(detail: msg)
                 case 400:
@@ -234,22 +296,28 @@ public final class AuthAPIService: @unchecked Sendable {
                 }
             }
 
-            let decoder = JSONDecoder()
-            return try decoder.decode(T.self, from: data)
+            do {
+                let decoder = JSONDecoder()
+                return try decoder.decode(T.self, from: data)
+            } catch let decodeErr {
+                let rawBody = String(data: data, encoding: .utf8) ?? "<corpo não utf-8>"
+                AppLogger.shared.error("Falha ao decodificar \(T.self): \(decodeErr). Corpo: \(rawBody)", category: .network)
+                throw NetworkError.decodingFailed(reason: "\(decodeErr.localizedDescription) (Payload: \(rawBody.prefix(80)))")
+            }
         } catch let err as any AppErrorProtocol {
             throw err
         } catch let urlErr as URLError {
-            if urlErr.code == .notConnectedToInternet {
-                throw NetworkError.noConnection
-            } else if urlErr.code == .cannotConnectToHost || urlErr.code == .networkConnectionLost || urlErr.code == .cannotFindHost {
-                throw NetworkError.serverUnreachable(host: baseURL.host ?? baseURL.absoluteString)
+            if urlErr.code == .cannotConnectToHost || urlErr.code == .networkConnectionLost || urlErr.code == .cannotFindHost {
+                throw NetworkError.serverUnreachable(host: "VPS Cofrinho (\(baseURL.host ?? "198.89.99.42"):3333)")
             } else if urlErr.code == .timedOut {
                 throw NetworkError.timeout
+            } else if urlErr.code == .notConnectedToInternet {
+                throw NetworkError.noConnection
             } else {
                 throw NetworkError.unknown(reason: urlErr.localizedDescription)
             }
         } catch {
-            throw NetworkError.decodingFailed(reason: error.localizedDescription)
+            throw NetworkError.unknown(reason: error.localizedDescription)
         }
     }
 }

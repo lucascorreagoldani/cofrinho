@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 /// View Model reativo com @Observable e @MainActor gerenciando o ciclo de vida de autenticação,
-/// sessões seguras e verificação biométrica (Face ID / Touch ID).
+/// renovação silenciosa de sessão (Refresh Token de 7 dias) e verificação biométrica (Face ID / Touch ID).
 @Observable
 @MainActor
 public final class AuthViewModel {
@@ -31,11 +31,14 @@ public final class AuthViewModel {
     public var activeError: (any AppErrorProtocol)?
     public var showBiometryPromptDialog: Bool = false
 
-    // Chaves de Persistência Local
+    // Chaves de Persistência Local Segura (Keychain & UserDefaults)
     private let tokenKey = "cofrinho_jwt_token"
+    private let refreshTokenKey = "cofrinho_refresh_token"
     private let sessionIdKey = "cofrinho_session_id"
     private let fastLoginKey = "cofrinho_fast_login_pref"
     private let biometryPrefKey = "cofrinho_biometry_pref"
+    private let cachedUserKey = "cofrinho_cached_user_json"
+    private let cachedPrefsKey = "cofrinho_cached_prefs_json"
 
     public init() {
         checkSavedSessionOnLaunch()
@@ -44,13 +47,24 @@ public final class AuthViewModel {
     // MARK: - Ciclo de Abertura do App
 
     public func checkSavedSessionOnLaunch() {
-        guard let savedToken = KeychainHelper.shared.read(key: tokenKey) else {
+        let isFastLoginEnabled = UserDefaults.standard.bool(forKey: fastLoginKey)
+        guard isFastLoginEnabled else {
             return
         }
 
-        let isFastLoginEnabled = UserDefaults.standard.bool(forKey: fastLoginKey)
-        guard isFastLoginEnabled else {
-            KeychainHelper.shared.clearAll()
+        // Carrega usuário e preferências em cache imediatamente para garantir UX fluida (sem telas brancas)
+        if let cachedUser = loadUserFromCache() {
+            self.currentUser = cachedUser
+            self.currentPreferences = loadPrefsFromCache()
+            self.isAuthenticated = true
+        }
+
+        guard let savedToken = KeychainHelper.shared.read(key: tokenKey) else {
+            if KeychainHelper.shared.read(key: refreshTokenKey) != nil {
+                Task {
+                    await validateOrRefreshSession()
+                }
+            }
             return
         }
 
@@ -64,7 +78,7 @@ public final class AuthViewModel {
                         reason: "Desbloqueie o Cofrinho para acessar suas finanças."
                     )
                     if authenticated {
-                        await loadUserData(token: savedToken)
+                        await validateOrRefreshSession()
                     }
                 } catch let err as SecurityError {
                     self.activeError = err
@@ -72,7 +86,7 @@ public final class AuthViewModel {
                     self.activeError = SecurityError.authenticationFailed(reason: error.localizedDescription)
                 }
             } else {
-                await loadUserData(token: savedToken)
+                await validateOrRefreshSession()
             }
         }
     }
@@ -99,21 +113,29 @@ public final class AuthViewModel {
             self.token = response.token
             self.currentUser = response.user
 
-            // Persiste na Keychain se "Manter Logado"
+            // Persiste na Keychain e UserDefaults se "Manter Logado"
             if keepLoggedIn {
                 KeychainHelper.shared.save(key: tokenKey, value: response.token)
+                if let refToken = response.refreshToken {
+                    KeychainHelper.shared.save(key: refreshTokenKey, value: refToken)
+                }
                 KeychainHelper.shared.save(key: sessionIdKey, value: response.session.id)
                 UserDefaults.standard.set(true, forKey: fastLoginKey)
+
+                saveUserToCache(response.user)
             } else {
                 KeychainHelper.shared.clearAll()
                 UserDefaults.standard.set(false, forKey: fastLoginKey)
             }
 
-            // Busca preferências
+            // Busca preferências da nuvem
             let prefs = try? await AuthAPIService.shared.getPreferences(token: response.token)
             self.currentPreferences = prefs
+            if let prefs {
+                savePrefsToCache(prefs)
+            }
 
-            AppLogger.shared.info("Usuário \(response.user.username) autenticado com sucesso", category: .security)
+            AppLogger.shared.info("Usuário \(response.user.username) autenticado na VPS com sucesso", category: .security)
 
             // Se o aparelho suporta Face ID/Touch ID e ainda não configurou, sugere ativar
             if BiometryService.shared.isBiometryAvailable && !(prefs?.verification ?? false) {
@@ -174,9 +196,9 @@ public final class AuthViewModel {
                 password: registerPasswordInput
             )
 
-            AppLogger.shared.info("Conta criada com sucesso para \(trimmedUsername)", category: .app)
+            AppLogger.shared.info("Conta criada na VPS para \(trimmedUsername)", category: .app)
 
-            // Realiza login imediato
+            // Realiza login imediato para obter os tokens e abrir a sessão
             self.loginInput = trimmedUsername
             self.passwordInput = registerPasswordInput
             await login()
@@ -249,45 +271,6 @@ public final class AuthViewModel {
         }
     }
 
-    public func loginOfflineMode() {
-        let chosenName = usernameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? (loginInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "lucas" : loginInput)
-            : usernameInput
-
-        let chosenEmail = emailInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? "\(chosenName)@cofrinho.app"
-            : emailInput
-
-        let nowMs = Int(Date().timeIntervalSince1970 * 1000)
-
-        let fallbackUser = UserProfileDTO(
-            id: 1,
-            username: chosenName,
-            email: chosenEmail,
-            firstIp: "127.0.0.1",
-            lastIp: "127.0.0.1",
-            firstLogin: nowMs,
-            lastLogin: nowMs,
-            registeredAt: nowMs
-        )
-
-        self.currentUser = fallbackUser
-        self.currentPreferences = UserPreferencesDTO(
-            userId: 1,
-            fastLogin: keepLoggedIn,
-            verification: false,
-            updatedAt: nowMs
-        )
-
-        if keepLoggedIn {
-            UserDefaults.standard.set(true, forKey: fastLoginKey)
-        }
-
-        self.activeError = nil
-        self.isAuthenticated = true
-        AppLogger.shared.info("Entrando no Modo Offline com dados locais para \(chosenName)", category: .app)
-    }
-
     public func logout() async {
         isLoading = true
         defer { isLoading = false }
@@ -296,33 +279,119 @@ public final class AuthViewModel {
             _ = try? await AuthAPIService.shared.logout(token: token)
         }
 
-        KeychainHelper.shared.clearAll()
-        UserDefaults.standard.removeObject(forKey: fastLoginKey)
-        UserDefaults.standard.removeObject(forKey: biometryPrefKey)
-
-        self.token = nil
-        self.currentUser = nil
-        self.currentPreferences = nil
-        self.isAuthenticated = false
+        await performSilentLogout()
         self.passwordInput = ""
         self.registerPasswordInput = ""
         self.confirmPasswordInput = ""
     }
 
-    // MARK: - Carregamento de Perfil
+    // MARK: - Validação e Renovação Silenciosa de Sessão (Refresh Token)
 
-    private func loadUserData(token: String) async {
+    private func validateOrRefreshSession() async {
+        guard let currentToken = token else {
+            await tryRefreshToken()
+            return
+        }
+
         do {
-            let profile = try await AuthAPIService.shared.getProfile(token: token)
-            let prefs = try? await AuthAPIService.shared.getPreferences(token: token)
+            let profile = try await AuthAPIService.shared.getProfile(token: currentToken)
+            let prefs = try? await AuthAPIService.shared.getPreferences(token: currentToken)
             self.currentUser = profile
             self.currentPreferences = prefs
             self.isAuthenticated = true
+
+            saveUserToCache(profile)
+            if let prefs { savePrefsToCache(prefs) }
+        } catch let appErr as AuthError where appErr.errorCode == "AUTH_001" || appErr.errorCode == "AUTH_009" {
+            // O access token expirou (15 minutos). Tenta renovar com o Refresh Token de 7 dias
+            AppLogger.shared.info("Access token expirado, renovando sessão via Refresh Token na VPS...", category: .security)
+            await tryRefreshToken()
+        } catch let netErr as NetworkError {
+            // Erro de conexão (offline, túnel etc): NUNCA desloga o usuário se tiver cache
+            AppLogger.shared.warning("Falha temporária de rede (\(netErr.localizedDescription)). Mantendo sessão ativa com cache local.", category: .network)
+            if self.currentUser != nil {
+                self.isAuthenticated = true
+            }
         } catch {
-            // Se o token estiver expirado na API
-            KeychainHelper.shared.clearAll()
-            self.token = nil
-            self.isAuthenticated = false
+            AppLogger.shared.warning("Validação de sessão encontrou erro: \(error.localizedDescription). Tentando renovação.", category: .app)
+            await tryRefreshToken()
         }
+    }
+
+    private func tryRefreshToken() async {
+        guard let savedRefreshToken = KeychainHelper.shared.read(key: refreshTokenKey) else {
+            AppLogger.shared.info("Nenhum refresh token encontrado. Requer novo login.", category: .security)
+            await performSilentLogout()
+            return
+        }
+
+        do {
+            let refreshResult = try await AuthAPIService.shared.refreshToken(refreshToken: savedRefreshToken)
+            self.token = refreshResult.accessToken
+            KeychainHelper.shared.save(key: tokenKey, value: refreshResult.accessToken)
+            AppLogger.shared.info("Sessão renovada com sucesso na VPS via Refresh Token!", category: .security)
+
+            // Obtém perfil atualizado com o novo token
+            let profile = try await AuthAPIService.shared.getProfile(token: refreshResult.accessToken)
+            let prefs = try? await AuthAPIService.shared.getPreferences(token: refreshResult.accessToken)
+            self.currentUser = profile
+            self.currentPreferences = prefs
+            self.isAuthenticated = true
+
+            saveUserToCache(profile)
+            if let prefs { savePrefsToCache(prefs) }
+        } catch let authErr as AuthError where authErr.errorCode == "AUTH_001" || authErr.errorCode == "AUTH_009" {
+            // A sessão de 7 dias expirou de fato ou foi revogada no servidor
+            AppLogger.shared.info("Sessão de 7 dias expirada na VPS. Solicitando novo login.", category: .security)
+            await performSilentLogout()
+        } catch {
+            // Se houver falha de rede temporária durante o refresh, não desconecta o usuário
+            AppLogger.shared.warning("Falha de conexão com a VPS durante renovação de token. Mantendo autenticação offline.", category: .network)
+            if self.currentUser != nil {
+                self.isAuthenticated = true
+            }
+        }
+    }
+
+    private func performSilentLogout() async {
+        KeychainHelper.shared.clearAll()
+        UserDefaults.standard.removeObject(forKey: fastLoginKey)
+        UserDefaults.standard.removeObject(forKey: biometryPrefKey)
+        self.token = nil
+        self.currentUser = nil
+        self.currentPreferences = nil
+        self.isAuthenticated = false
+    }
+
+    // MARK: - Helpers de Cache Local (Offline & Instant Launch)
+
+    private func saveUserToCache(_ user: UserProfileDTO) {
+        if let data = try? JSONEncoder().encode(user),
+           let json = String(data: data, encoding: .utf8) {
+            KeychainHelper.shared.save(key: cachedUserKey, value: json)
+        }
+    }
+
+    private func loadUserFromCache() -> UserProfileDTO? {
+        guard let json = KeychainHelper.shared.read(key: cachedUserKey),
+              let data = json.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(UserProfileDTO.self, from: data)
+    }
+
+    private func savePrefsToCache(_ prefs: UserPreferencesDTO) {
+        if let data = try? JSONEncoder().encode(prefs),
+           let json = String(data: data, encoding: .utf8) {
+            KeychainHelper.shared.save(key: cachedPrefsKey, value: json)
+        }
+    }
+
+    private func loadPrefsFromCache() -> UserPreferencesDTO? {
+        guard let json = KeychainHelper.shared.read(key: cachedPrefsKey),
+              let data = json.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(UserPreferencesDTO.self, from: data)
     }
 }
