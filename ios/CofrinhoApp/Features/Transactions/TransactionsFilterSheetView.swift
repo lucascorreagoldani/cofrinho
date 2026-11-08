@@ -192,14 +192,8 @@ public struct TransactionsFilterSheetView: View {
     }
 
     private var periodFormattedText: String {
-        var comp = DateComponents()
-        comp.month = tempMonth
-        comp.year = tempYear
-        let date = Calendar.current.date(from: comp) ?? Date()
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM 'de' yyyy"
-        formatter.locale = Locale(identifier: "pt_BR")
-        return formatter.string(from: date).capitalized
+        let monthName = Month(rawValue: tempMonth)?.localizedName() ?? ""
+        return "\(monthName) de \(tempYear)"
     }
 
     private func clearFilters() {

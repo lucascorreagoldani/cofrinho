@@ -34,6 +34,7 @@
 		AE6E27370D79B866F33E6454 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D28CB716BE1495F0D7742A07 /* MainTabView.swift */; };
 		B0DA2D3DDBA010ADFFF979D3 /* SecurityError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5516B56B2C52B20BEBE30004 /* SecurityError.swift */; };
 		B158F74A0B0A34C221A74B7E /* NetworkError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 423194BBE6698E54893E3638 /* NetworkError.swift */; };
+		B25BFC6B8FDB5656349645C4 /* Month.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAFDEA1E972CD7B2BBCF6E3 /* Month.swift */; };
 		C278974BBDB3333F36192EC8 /* TransactionsAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 232A7744246B43CF19F01D9D /* TransactionsAPIService.swift */; };
 		C702BD3296A5AF3C88CCB3CE /* LogCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AB2BB6CC7B86E417119ED77 /* LogCategory.swift */; };
 		D7607126BBCDADBCD6F860E8 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3350B94409268186B89BBE87 /* LoginView.swift */; };
@@ -82,9 +83,9 @@
 		811079180079BD47AD61FEF7 /* AppErrorProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppErrorProtocol.swift; sourceTree = "<group>"; };
 		86A95467C779F02131288CB5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		871D93BE9BE65017AF3990CD /* ErrorAndLoggingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorAndLoggingTests.swift; sourceTree = "<group>"; };
-		87F827B1B4B91FC594423015 /* CofrinhoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CofrinhoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		87F827B1B4B91FC594423015 /* CofrinhoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CofrinhoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9185A2C53EE8B6FCAFE9FDA5 /* TransactionsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionsListView.swift; sourceTree = "<group>"; };
-		92CCA8981E0D4050DBD21296 /* Cofrinho.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cofrinho.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		92CCA8981E0D4050DBD21296 /* Cofrinho.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cofrinho.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		978ACB763B7CF9A30BE86104 /* AuthErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthErrorTests.swift; sourceTree = "<group>"; };
 		9FFDE8C24849D7E44F2A27CD /* LocalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModels.swift; sourceTree = "<group>"; };
 		B43C9FADD37CE67121D91537 /* MonthYearPickerSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthYearPickerSheetView.swift; sourceTree = "<group>"; };
@@ -99,6 +100,7 @@
 		EBEF16001F57EE66D7E56CF1 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		EEC3D8795E7FACF9E01282B5 /* AccountModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountModel.swift; sourceTree = "<group>"; };
 		F8F81FC403314BD30C20D1BC /* CofrinhoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CofrinhoApp.swift; sourceTree = "<group>"; };
+		FAAFDEA1E972CD7B2BBCF6E3 /* Month.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Month.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -280,6 +282,7 @@
 			children = (
 				EEC3D8795E7FACF9E01282B5 /* AccountModel.swift */,
 				5722952A562391B68D4E1160 /* CategoryModel.swift */,
+				FAAFDEA1E972CD7B2BBCF6E3 /* Month.swift */,
 				CC5ABE987AAC4E0D11AC1FD3 /* TransactionModel.swift */,
 			);
 			path = Models;
@@ -331,7 +334,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2720;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					4A2C0C33F0FE5C9170A516BE = {
 						ProvisioningStyle = Automatic;
@@ -409,6 +412,7 @@
 				FAB16817C6A9DD53CA53B936 /* LogServiceProtocol.swift in Sources */,
 				D7607126BBCDADBCD6F860E8 /* LoginView.swift in Sources */,
 				AE6E27370D79B866F33E6454 /* MainTabView.swift in Sources */,
+				B25BFC6B8FDB5656349645C4 /* Month.swift in Sources */,
 				02A1439B653FD62B9EEC4E76 /* MonthYearPickerSheetView.swift in Sources */,
 				B158F74A0B0A34C221A74B7E /* NetworkError.swift in Sources */,
 				46D6B058020523D1C93AFE9F /* NewExpenseView.swift in Sources */,
@@ -442,7 +446,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = J747JQ5H3S;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = CofrinhoApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -469,7 +472,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = J747JQ5H3S;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = CofrinhoApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -493,7 +495,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -547,7 +548,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -580,7 +580,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -627,7 +626,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;

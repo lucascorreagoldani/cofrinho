@@ -12,12 +12,6 @@ public struct MonthYearPickerSheetView: View {
     @State private var tempMonth: Int
     @State private var tempYear: Int
 
-    private let months = [
-        (1, "Janeiro"), (2, "Fevereiro"), (3, "Março"), (4, "Abril"),
-        (5, "Maio"), (6, "Junho"), (7, "Julho"), (8, "Agosto"),
-        (9, "Setembro"), (10, "Outubro"), (11, "Novembro"), (12, "Dezembro")
-    ]
-
     private let availableYears: [Int] = {
         let currentYear = Calendar.current.component(.year, from: Date())
         return Array((currentYear - 3)...(currentYear + 10))
@@ -83,11 +77,11 @@ public struct MonthYearPickerSheetView: View {
                             .padding(.horizontal, 4)
 
                         HStack(spacing: 0) {
-                            // Picker de Mês com largura total para evitar truncamento
+                            // Picker de Mês fortemente tipado e internacionalizado via enum Month
                             Picker("Mês", selection: $tempMonth) {
-                                ForEach(months, id: \.0) { item in
-                                    Text(item.1)
-                                        .tag(item.0)
+                                ForEach(Month.allCases) { month in
+                                    Text(month.localizedName())
+                                        .tag(month.rawValue)
                                 }
                             }
                             .pickerStyle(.wheel)
@@ -169,14 +163,8 @@ public struct MonthYearPickerSheetView: View {
     }
 
     private var previewTitle: String {
-        var comp = DateComponents()
-        comp.month = tempMonth
-        comp.year = tempYear
-        let date = Calendar.current.date(from: comp) ?? Date()
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM 'de' yyyy"
-        formatter.locale = Locale(identifier: "pt_BR")
-        return formatter.string(from: date).capitalized
+        let monthName = Month(rawValue: tempMonth)?.localizedName() ?? ""
+        return "\(monthName) de \(tempYear)"
     }
 
     private func shortcutChip(title: String, icon: String, isPrimary: Bool = false, action: @escaping () -> Void) -> some View {

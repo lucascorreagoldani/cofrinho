@@ -632,14 +632,8 @@ public struct TransactionsListView: View {
     // MARK: - Lógicas de Ação
 
     private var monthYearTitle: String {
-        var components = DateComponents()
-        components.month = selectedMonth
-        components.year = selectedYear
-        let date = Calendar.current.date(from: components) ?? Date()
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
-        formatter.locale = Locale(identifier: "pt_BR")
-        return formatter.string(from: date).capitalized
+        let monthName = Month(rawValue: selectedMonth)?.localizedName() ?? ""
+        return "\(monthName) \(selectedYear)"
     }
 
     private func changeMonth(by delta: Int) {
