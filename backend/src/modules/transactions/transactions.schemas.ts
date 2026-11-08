@@ -72,7 +72,7 @@ export const updateTransactionBodySchema = z.object({
 export const listTransactionsQuerySchema = z.object({
   month: z.coerce.number().int().min(1).max(12).optional(),
   year: z.coerce.number().int().min(2000).max(2100).optional(),
-  status: transactionStatusSchema.default('active'),
+  status: z.enum(['active', 'hidden', 'all', 'deleted']).default('active'),
   category_id: z.coerce.number().int().positive().optional(),
   account_id: z.coerce.number().int().positive().optional(),
   page: z.coerce.number().int().min(1).default(1),

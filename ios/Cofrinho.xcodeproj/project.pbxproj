@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		01AB8D39219004C9F6F0785D /* CofrinhoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F81FC403314BD30C20D1BC /* CofrinhoApp.swift */; };
+		02A1439B653FD62B9EEC4E76 /* MonthYearPickerSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B43C9FADD37CE67121D91537 /* MonthYearPickerSheetView.swift */; };
 		048AD68AB822E0459F55A821 /* AccountModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEC3D8795E7FACF9E01282B5 /* AccountModel.swift */; };
 		11BA7D0331C8E5C1B65DEC6E /* CreateAccountSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FC3B292662892FD1CCB755 /* CreateAccountSheetView.swift */; };
 		1C3F10BF94E3B68712A45A32 /* AppErrorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 811079180079BD47AD61FEF7 /* AppErrorProtocol.swift */; };
@@ -39,6 +40,7 @@
 		E05EC1964B3E623F96C4CFC7 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E5EBB644BAA4E87B5BFC2C /* AppLogger.swift */; };
 		EE30601C668E58F57E512021 /* LocalDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28F64ACD9DC3CA218A33982D /* LocalDataManager.swift */; };
 		EE796059F45B85C20F78BB9C /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03876043594783074FA5ACC9 /* APIClient.swift */; };
+		F117E555C74983474D0F9AA0 /* TransactionsFilterSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FBB33C82721F179111B0F9D /* TransactionsFilterSheetView.swift */; };
 		F25447BA1D059109E7584115 /* TransactionsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9185A2C53EE8B6FCAFE9FDA5 /* TransactionsListView.swift */; };
 		F894ADEC9B6CDDFE98FB6012 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E3EEAABEE308E25AA04874A /* AuthViewModel.swift */; };
 		FAB16817C6A9DD53CA53B936 /* LogServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8808C68DDB8BEB5C6DA07BD /* LogServiceProtocol.swift */; };
@@ -58,6 +60,7 @@
 /* Begin PBXFileReference section */
 		03876043594783074FA5ACC9 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		14B05F2E3007525C1AC18809 /* CategoriesAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoriesAPIService.swift; sourceTree = "<group>"; };
+		1FBB33C82721F179111B0F9D /* TransactionsFilterSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionsFilterSheetView.swift; sourceTree = "<group>"; };
 		1FC786F196E75FF5FB29EC76 /* AccountsAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsAPIService.swift; sourceTree = "<group>"; };
 		232A7744246B43CF19F01D9D /* TransactionsAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionsAPIService.swift; sourceTree = "<group>"; };
 		28F64ACD9DC3CA218A33982D /* LocalDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDataManager.swift; sourceTree = "<group>"; };
@@ -84,6 +87,7 @@
 		92CCA8981E0D4050DBD21296 /* Cofrinho.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cofrinho.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		978ACB763B7CF9A30BE86104 /* AuthErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthErrorTests.swift; sourceTree = "<group>"; };
 		9FFDE8C24849D7E44F2A27CD /* LocalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModels.swift; sourceTree = "<group>"; };
+		B43C9FADD37CE67121D91537 /* MonthYearPickerSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthYearPickerSheetView.swift; sourceTree = "<group>"; };
 		B4B137D478046A743562212D /* NewExpenseViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewExpenseViewModel.swift; sourceTree = "<group>"; };
 		BA9B92BD256FBD451CAEAFE5 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		C63CCE2B3D980F1941D41915 /* AuthError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthError.swift; sourceTree = "<group>"; };
@@ -227,8 +231,10 @@
 			children = (
 				79FC3B292662892FD1CCB755 /* CreateAccountSheetView.swift */,
 				4CCED32F0A41C236DF1BF35A /* CreateCategorySheetView.swift */,
+				B43C9FADD37CE67121D91537 /* MonthYearPickerSheetView.swift */,
 				72FAD0764A3DA8E5C2F86F7F /* NewExpenseView.swift */,
 				B4B137D478046A743562212D /* NewExpenseViewModel.swift */,
+				1FBB33C82721F179111B0F9D /* TransactionsFilterSheetView.swift */,
 				9185A2C53EE8B6FCAFE9FDA5 /* TransactionsListView.swift */,
 			);
 			path = Transactions;
@@ -403,6 +409,7 @@
 				FAB16817C6A9DD53CA53B936 /* LogServiceProtocol.swift in Sources */,
 				D7607126BBCDADBCD6F860E8 /* LoginView.swift in Sources */,
 				AE6E27370D79B866F33E6454 /* MainTabView.swift in Sources */,
+				02A1439B653FD62B9EEC4E76 /* MonthYearPickerSheetView.swift in Sources */,
 				B158F74A0B0A34C221A74B7E /* NetworkError.swift in Sources */,
 				46D6B058020523D1C93AFE9F /* NewExpenseView.swift in Sources */,
 				94BD96C7EADA7D04E4263A43 /* NewExpenseViewModel.swift in Sources */,
@@ -410,6 +417,7 @@
 				B0DA2D3DDBA010ADFFF979D3 /* SecurityError.swift in Sources */,
 				7D0D8AE914BE1CF2F5526FF3 /* TransactionModel.swift in Sources */,
 				C278974BBDB3333F36192EC8 /* TransactionsAPIService.swift in Sources */,
+				F117E555C74983474D0F9AA0 /* TransactionsFilterSheetView.swift in Sources */,
 				F25447BA1D059109E7584115 /* TransactionsListView.swift in Sources */,
 				869E6CE9FC96A01A493C53BD /* ValidationError.swift in Sources */,
 				ACA5D6F01D773B88243D3D8D /* View+ErrorAlert.swift in Sources */,

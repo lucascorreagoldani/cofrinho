@@ -1,6 +1,8 @@
 import SwiftUI
 
-/// Tela de Extrato Completo de Gastos e Transações do Usuário.
+/// Tela de Extrato Completo de Gastos e Transações do Usuário no Cofrinho.
+/// Suporta filtros avançados (Conta, Categoria, Ocultas, Período), projeção de parcelas futuras,
+/// salto direto para qualquer mês/ano e ações de deslize seguras com confirmação.
 public struct TransactionsListView: View {
     let token: String
 
@@ -10,26 +12,50 @@ public struct TransactionsListView: View {
     @State private var canLoadMore: Bool = true
     @State private var currentPage: Int = 1
     private let pageSize: Int = 30
-    @State private var showNewExpenseSheet: Bool = false
+
+    // Filtros e Navegação Temporal
     @State private var selectedMonth: Int = Calendar.current.component(.month, from: Date())
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
-    @State private var activeError: (any AppErrorProtocol)?
+    @State private var selectedAccountId: Int? = nil
+    @State private var selectedCategoryId: Int? = nil
+    @State private var filterStatus: String = "active"
 
-    // Estado para exclusão em cascata
+    // Estados de Sheets
+    @State private var showNewExpenseSheet: Bool = false
+    @State private var showFilterSheet: Bool = false
+    @State private var showMonthYearPicker: Bool = false
+
+    // Dados Auxiliares para Filtros
+    @State private var availableAccounts: [AccountModel] = []
+    @State private var availableCategories: [CategoryModel] = []
+
+    // Estados de Exclusão e Confirmações
     @State private var transactionToDelete: TransactionModel?
-    @State private var showDeleteConfirmation: Bool = false
+    @State private var showDeleteConfirmation: Bool = false // Para parceladas (cascata)
+    @State private var showSingleDeleteConfirmation: Bool = false // Para gasto único
+    @State private var transactionToToggleVisibility: TransactionModel?
+    @State private var showVisibilityConfirmation: Bool = false
+
+    @State private var activeError: (any AppErrorProtocol)?
 
     public init(token: String) {
         self.token = token
     }
 
+    private var hasActiveFilters: Bool {
+        selectedAccountId != nil || selectedCategoryId != nil || filterStatus != "active"
+    }
+
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // MARK: - Barra de Seleção de Mês/Ano
+                // MARK: - Barra de Seleção de Mês/Ano (Salto Direto)
                 monthSelectorHeader
 
-                // MARK: - Card de Resumo Mensal
+                // MARK: - Barra de Filtros Ativos (Chips)
+                activeFiltersBar
+
+                // MARK: - Card de Resumo Mensal com Projeção de Parcelas
                 monthlySummaryCard
 
                 // MARK: - Lista de Gastos
@@ -38,7 +64,7 @@ public struct TransactionsListView: View {
                         Spacer()
                         ProgressView()
                             .scaleEffect(1.2)
-                        Text("Carregando gastos...")
+                        Text("Carregando extrato...")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         Spacer()
@@ -52,24 +78,24 @@ public struct TransactionsListView: View {
                                 .onAppear {
                                     loadMoreIfNeeded(currentItem: tx)
                                 }
-                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    // Ação Primária: Excluir com Full Swipe
                                     Button(role: .destructive) {
                                         prepareDelete(tx)
                                     } label: {
                                         Label("Excluir", systemImage: "trash.fill")
                                     }
 
+                                    // Ação Secundária: Ocultar / Desocultar
                                     Button {
-                                        Task {
-                                            await toggleVisibility(tx)
-                                        }
+                                        prepareToggleVisibility(tx)
                                     } label: {
                                         Label(
-                                            tx.status == "hidden" ? "Mostrar" : "Ocultar",
+                                            tx.status == "hidden" ? "Desocultar" : "Ocultar",
                                             systemImage: tx.status == "hidden" ? "eye.fill" : "eye.slash.fill"
                                         )
                                     }
-                                    .tint(.secondary)
+                                    .tint(tx.status == "hidden" ? Color.blue : Color.secondary)
                                 }
                         }
 
@@ -92,6 +118,23 @@ public struct TransactionsListView: View {
             }
             .navigationTitle("Extrato")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showFilterSheet = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(hasActiveFilters ? Color.orange : Color.blue)
+                            if hasActiveFilters {
+                                Circle()
+                                    .fill(Color.orange)
+                                    .frame(width: 7, height: 7)
+                            }
+                        }
+                    }
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showNewExpenseSheet = true
@@ -102,6 +145,7 @@ public struct TransactionsListView: View {
                     }
                 }
             }
+            // MARK: - Sheet Novo Gasto
             .sheet(isPresented: $showNewExpenseSheet) {
                 NavigationStack {
                     NewExpenseView(token: token)
@@ -117,6 +161,49 @@ public struct TransactionsListView: View {
                         }
                 }
             }
+            // MARK: - Sheet de Filtros Avançados
+            .sheet(isPresented: $showFilterSheet) {
+                TransactionsFilterSheetView(
+                    selectedAccountId: $selectedAccountId,
+                    selectedCategoryId: $selectedCategoryId,
+                    filterStatus: $filterStatus,
+                    selectedMonth: $selectedMonth,
+                    selectedYear: $selectedYear,
+                    accounts: availableAccounts,
+                    categories: availableCategories,
+                    onApply: {
+                        Task {
+                            await loadTransactions(reset: true)
+                        }
+                    }
+                )
+            }
+            // MARK: - Sheet de Salto Direto de Mês/Ano
+            .sheet(isPresented: $showMonthYearPicker) {
+                MonthYearPickerSheetView(
+                    selectedMonth: $selectedMonth,
+                    selectedYear: $selectedYear,
+                    onApply: {
+                        Task {
+                            await loadTransactions(reset: true)
+                        }
+                    }
+                )
+            }
+            // MARK: - Confirmação: Exclusão de Gasto Único
+            .alert(
+                "Excluir este gasto?",
+                isPresented: $showSingleDeleteConfirmation,
+                presenting: transactionToDelete
+            ) { tx in
+                Button("Excluir Gasto", role: .destructive) {
+                    Task { await performDelete(tx, cascade: "single") }
+                }
+                Button("Cancelar", role: .cancel) {}
+            } message: { tx in
+                Text("Tem certeza de que deseja excluir \"\(tx.description)\" no valor de \(tx.formattedAmount)? O lançamento será removido do seu extrato.")
+            }
+            // MARK: - Confirmação: Exclusão em Cascata de Parcelas
             .confirmationDialog(
                 "Excluir Gasto Parcelado",
                 isPresented: $showDeleteConfirmation,
@@ -136,8 +223,26 @@ public struct TransactionsListView: View {
             } message: {
                 Text("Este gasto faz parte de um parcelamento. Deseja remover apenas a parcela atual ou também as parcelas restantes?")
             }
+            // MARK: - Confirmação: Ocultar / Desocultar
+            .alert(
+                transactionToToggleVisibility?.status == "hidden" ? "Desocultar este gasto?" : "Ocultar este gasto?",
+                isPresented: $showVisibilityConfirmation,
+                presenting: transactionToToggleVisibility
+            ) { tx in
+                Button(tx.status == "hidden" ? "Desocultar" : "Ocultar", role: tx.status == "hidden" ? .none : .destructive) {
+                    Task { await toggleVisibility(tx) }
+                }
+                Button("Cancelar", role: .cancel) {}
+            } message: { tx in
+                if tx.status == "hidden" {
+                    Text("Deseja desocultar \"\(tx.description)\"? O gasto voltará a ser exibido normalmente no extrato padrão.")
+                } else {
+                    Text("Deseja ocultar \"\(tx.description)\"? O gasto não aparecerá no extrato padrão, mas você poderá visualizá-lo a qualquer momento ativando o filtro 'Exibir despesas ocultas'.")
+                }
+            }
             .handleAnyAppError($activeError)
             .task {
+                await loadAuxiliaryData()
                 await loadTransactions(reset: true)
             }
         }
@@ -157,9 +262,29 @@ public struct TransactionsListView: View {
 
             Spacer()
 
-            Text(monthYearTitle)
-                .font(.headline)
-                .foregroundStyle(.primary)
+            // Botão com Calendário que permite Salto Direto de Mês/Ano
+            Button {
+                showMonthYearPicker = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(Color.blue)
+
+                    Text(monthYearTitle)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+
+                    Image(systemName: "chevron.down.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color(.systemBackground))
+                .cornerRadius(20)
+                .shadow(color: Color.black.opacity(0.04), radius: 4, y: 1)
+            }
 
             Spacer()
 
@@ -176,27 +301,141 @@ public struct TransactionsListView: View {
         .background(Color(.secondarySystemBackground))
     }
 
+    @ViewBuilder
+    private var activeFiltersBar: some View {
+        if hasActiveFilters {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    if let accId = selectedAccountId, let acc = availableAccounts.first(where: { $0.id == accId }) {
+                        filterChip(title: acc.name, icon: acc.icon, color: acc.swiftUIColor) {
+                            selectedAccountId = nil
+                            Task { await loadTransactions(reset: true) }
+                        }
+                    }
+
+                    if let catId = selectedCategoryId, let cat = availableCategories.first(where: { $0.id == catId }) {
+                        filterChip(title: cat.name, icon: cat.icon, color: cat.swiftUIColor) {
+                            selectedCategoryId = nil
+                            Task { await loadTransactions(reset: true) }
+                        }
+                    }
+
+                    if filterStatus == "all" {
+                        filterChip(title: "Com Ocultas", icon: "eye.fill", color: .purple) {
+                            filterStatus = "active"
+                            Task { await loadTransactions(reset: true) }
+                        }
+                    } else if filterStatus == "hidden" {
+                        filterChip(title: "Apenas Ocultas", icon: "eye.slash.fill", color: .purple) {
+                            filterStatus = "active"
+                            Task { await loadTransactions(reset: true) }
+                        }
+                    }
+
+                    Button {
+                        selectedAccountId = nil
+                        selectedCategoryId = nil
+                        filterStatus = "active"
+                        Task { await loadTransactions(reset: true) }
+                    } label: {
+                        Text("Limpar Filtros")
+                            .font(.caption2.bold())
+                            .foregroundStyle(Color.red)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(12)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+            }
+            .background(Color(.tertiarySystemBackground))
+        }
+    }
+
+    private func filterChip(title: String, icon: String, color: Color, onRemove: @escaping () -> Void) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundStyle(color)
+
+            Text(title)
+                .font(.caption.weight(.semibold))
+
+            Button(action: onRemove) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(Color(.systemBackground))
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.04), radius: 2, y: 1)
+    }
+
     private var monthlySummaryCard: some View {
-        let total = transactions.reduce(Decimal(0)) { $0 + $1.amount }
+        let regularExpenses = transactions.filter { !$0.isInstallment }
+        let installmentExpenses = transactions.filter { $0.isInstallment }
+        let regularTotal = regularExpenses.reduce(Decimal(0)) { $0 + $1.amount }
+        let installmentTotal = installmentExpenses.reduce(Decimal(0)) { $0 + $1.amount }
+        let total = regularTotal + installmentTotal
+
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = "BRL"
         formatter.locale = Locale(identifier: "pt_BR")
         let totalStr = formatter.string(from: total as NSDecimalNumber) ?? "R$ 0,00"
+        let regularStr = formatter.string(from: regularTotal as NSDecimalNumber) ?? "R$ 0,00"
+        let installmentStr = formatter.string(from: installmentTotal as NSDecimalNumber) ?? "R$ 0,00"
 
-        return HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Total Gasto no Mês")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                Text(totalStr)
-                    .font(.title2.bold())
-                    .foregroundStyle(Color.red)
+        return VStack(spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(installmentTotal > 0 && regularTotal == 0 ? "Comprometido no Mês (Parcelas)" : "Total Gasto no Mês")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Text(totalStr)
+                        .font(.title2.bold())
+                        .foregroundStyle(Color.red)
+                }
+                Spacer()
+                Image(systemName: installmentTotal > 0 ? "creditcard.and.123" : "chart.line.uptrend.xyaxis")
+                    .font(.system(size: 28))
+                    .foregroundStyle(Color.red.opacity(0.8))
             }
-            Spacer()
-            Image(systemName: "chart.line.uptrend.xyaxis")
-                .font(.system(size: 28))
-                .foregroundStyle(Color.red.opacity(0.8))
+
+            // Discriminação dos valores das parcelas nos extratos futuros
+            if installmentTotal > 0 {
+                Divider()
+                    .padding(.vertical, 2)
+
+                HStack(spacing: 12) {
+                    if regularTotal > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "banknote")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text("À vista: \(regularStr)")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    HStack(spacing: 4) {
+                        Image(systemName: "creditcard")
+                            .font(.caption2)
+                            .foregroundStyle(Color.blue)
+                        Text("Parcelas: \(installmentStr) (\(installmentExpenses.count)x)")
+                            .font(.caption.bold())
+                            .foregroundStyle(Color.blue)
+                    }
+
+                    Spacer()
+                }
+            }
         }
         .padding()
         .background(Color(.systemBackground))
@@ -236,6 +475,20 @@ public struct TransactionsListView: View {
                             .background(Color.blue.opacity(0.12))
                             .cornerRadius(6)
                     }
+
+                    if tx.status == "hidden" {
+                        HStack(spacing: 2) {
+                            Image(systemName: "eye.slash.fill")
+                                .font(.system(size: 9))
+                            Text("Oculto")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .foregroundStyle(Color.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.12))
+                        .cornerRadius(4)
+                    }
                 }
 
                 HStack(spacing: 6) {
@@ -259,37 +512,57 @@ public struct TransactionsListView: View {
             // Valor
             Text(tx.formattedAmount)
                 .font(.callout.bold())
-                .foregroundStyle(Color.red)
+                .foregroundStyle(tx.status == "hidden" ? Color.secondary : Color.red)
         }
         .padding(.vertical, 4)
+        .opacity(tx.status == "hidden" ? 0.75 : 1.0)
     }
 
     private var emptyStateView: some View {
         VStack(spacing: 16) {
             Spacer()
-            Image(systemName: "tray.fill")
+            Image(systemName: hasActiveFilters ? "line.3.horizontal.decrease.circle" : "tray.fill")
                 .font(.system(size: 48))
                 .foregroundStyle(Color.gray.opacity(0.6))
-            Text("Nenhum gasto neste mês")
+
+            Text(hasActiveFilters ? "Nenhum gasto com os filtros atuais" : "Nenhum gasto neste mês")
                 .font(.headline)
-            Text("Toque no botão abaixo para adicionar seu primeiro gasto.")
+
+            Text(hasActiveFilters ? "Tente redefinir os filtros ou alterar o mês para encontrar transações." : "Toque no botão abaixo para adicionar seu primeiro gasto.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
 
-            Button {
-                showNewExpenseSheet = true
-            } label: {
-                Text("+ Adicionar Gasto")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(Color.blue)
-                    .cornerRadius(12)
+            if hasActiveFilters {
+                Button {
+                    selectedAccountId = nil
+                    selectedCategoryId = nil
+                    filterStatus = "active"
+                    Task { await loadTransactions(reset: true) }
+                } label: {
+                    Text("Limpar Filtros")
+                        .font(.headline)
+                        .foregroundStyle(.blue)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(12)
+                }
+            } else {
+                Button {
+                    showNewExpenseSheet = true
+                } label: {
+                    Text("+ Adicionar Gasto")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Color.blue)
+                        .cornerRadius(12)
+                }
+                .padding(.top, 8)
             }
-            .padding(.top, 8)
             Spacer()
         }
     }
@@ -310,11 +583,12 @@ public struct TransactionsListView: View {
     private func changeMonth(by delta: Int) {
         var month = selectedMonth + delta
         var year = selectedYear
-        if month > 12 {
-            month = 1
+        while month > 12 {
+            month -= 12
             year += 1
-        } else if month < 1 {
-            month = 12
+        }
+        while month < 1 {
+            month += 12
             year -= 1
         }
         selectedMonth = month
@@ -324,12 +598,44 @@ public struct TransactionsListView: View {
         }
     }
 
+    private func loadAuxiliaryData() async {
+        // Carrega do cache instantâneo
+        let cachedAccs = LocalDataManager.shared.fetchCachedAccounts()
+        if !cachedAccs.isEmpty { availableAccounts = cachedAccs }
+
+        let cachedCats = LocalDataManager.shared.fetchCachedCategories()
+        if !cachedCats.isEmpty { availableCategories = cachedCats }
+
+        // Sincroniza em segundo plano com a VPS
+        do {
+            let accs = try await AccountsAPIService.shared.listAccounts(token: token)
+            self.availableAccounts = accs
+            LocalDataManager.shared.cacheAccounts(accs)
+        } catch {
+            AppLogger.shared.warning("Falha ao carregar contas para filtro: \(error.localizedDescription)", category: .network)
+        }
+
+        do {
+            let cats = try await CategoriesAPIService.shared.listCategories(token: token)
+            self.availableCategories = cats
+            LocalDataManager.shared.cacheCategories(cats)
+        } catch {
+            AppLogger.shared.warning("Falha ao carregar categorias para filtro: \(error.localizedDescription)", category: .network)
+        }
+    }
+
     private func loadTransactions(reset: Bool = true) async {
         if reset {
             currentPage = 1
             canLoadMore = true
             // 1. Carrega instantaneamente o cache local do SwiftData para 0 delay na UI
-            let cached = LocalDataManager.shared.fetchCachedTransactions(month: selectedMonth, year: selectedYear)
+            let cached = LocalDataManager.shared.fetchCachedTransactions(
+                month: selectedMonth,
+                year: selectedYear,
+                categoryId: selectedCategoryId,
+                accountId: selectedAccountId,
+                status: filterStatus
+            )
             if !cached.isEmpty {
                 self.transactions = cached
             }
@@ -348,6 +654,9 @@ public struct TransactionsListView: View {
                 token: token,
                 month: selectedMonth,
                 year: selectedYear,
+                categoryId: selectedCategoryId,
+                accountId: selectedAccountId,
+                status: filterStatus,
                 page: currentPage,
                 limit: pageSize
             )
@@ -363,7 +672,7 @@ public struct TransactionsListView: View {
             }
 
             LocalDataManager.shared.cacheTransactions(fetched)
-            AppLogger.shared.info("Extrato atualizado com \(transactions.count) transações.", category: .business)
+            AppLogger.shared.info("Extrato atualizado (\(transactions.count) transações, status: \(filterStatus)).", category: .business)
         } catch let err as any AppErrorProtocol {
             // Se offline e temos dados em cache, opera silenciosamente
             if !transactions.isEmpty && isConnectionError(err) {
@@ -398,6 +707,9 @@ public struct TransactionsListView: View {
                     token: token,
                     month: selectedMonth,
                     year: selectedYear,
+                    categoryId: selectedCategoryId,
+                    accountId: selectedAccountId,
+                    status: filterStatus,
                     page: currentPage,
                     limit: pageSize
                 )
@@ -432,10 +744,13 @@ public struct TransactionsListView: View {
         if tx.isInstallment && (tx.totalInstallments ?? 1) > 1 {
             showDeleteConfirmation = true
         } else {
-            Task {
-                await performDelete(tx, cascade: "single")
-            }
+            showSingleDeleteConfirmation = true
         }
+    }
+
+    private func prepareToggleVisibility(_ tx: TransactionModel) {
+        transactionToToggleVisibility = tx
+        showVisibilityConfirmation = true
     }
 
     private func performDelete(_ tx: TransactionModel, cascade: String) async {
@@ -445,7 +760,7 @@ public struct TransactionsListView: View {
                 id: tx.id,
                 cascade: cascade
             )
-            AppLogger.shared.info("Transação \(tx.id) excluída (modo: \(cascade)).", category: .business)
+            AppLogger.shared.info("Transação \(tx.id) excluída com sucesso (modo: \(cascade)).", category: .business)
             await loadTransactions(reset: true)
         } catch let err as any AppErrorProtocol {
             self.activeError = err
@@ -486,4 +801,3 @@ public struct TransactionsListView: View {
         return Color(.sRGB, red: Double(r)/255, green: Double(g)/255, blue: Double(b)/255, opacity: 1.0)
     }
 }
-

@@ -95,8 +95,14 @@ public final class LocalDataManager {
         try? context.save()
     }
 
-    /// Busca transações armazenadas localmente para um mês e ano específicos.
-    public func fetchCachedTransactions(month: Int, year: Int) -> [TransactionModel] {
+    /// Busca transações armazenadas localmente para um mês e ano específicos com filtros opcionais.
+    public func fetchCachedTransactions(
+        month: Int,
+        year: Int,
+        categoryId: Int? = nil,
+        accountId: Int? = nil,
+        status: String = "active"
+    ) -> [TransactionModel] {
         var startComponents = DateComponents()
         startComponents.year = year
         startComponents.month = month
@@ -123,7 +129,15 @@ public final class LocalDataManager {
         )
 
         let entities = (try? context.fetch(descriptor)) ?? []
-        return entities.map { $0.toModel() }
+        return entities
+            .filter { item in
+                if status == "active" && item.status != "active" { return false }
+                if status == "hidden" && item.status != "hidden" { return false }
+                if let categoryId, item.categoryId != categoryId { return false }
+                if let accountId, item.accountId != accountId { return false }
+                return true
+            }
+            .map { $0.toModel() }
     }
 
     /// Salva um novo gasto localmente quando o dispositivo estiver offline.

@@ -161,9 +161,16 @@ export class TransactionsService {
   }
 
   async listTransactions(userId: number, filters: z.infer<typeof listTransactionsQuerySchema>) {
-    const conditions = ['t.user_id = $1', 't.status = $2'];
-    const values: any[] = [userId, filters.status];
-    let idx = 3;
+    const conditions = ['t.user_id = $1'];
+    const values: any[] = [userId];
+    let idx = 2;
+
+    if (filters.status === 'all') {
+      conditions.push(`t.status != 'deleted'`);
+    } else {
+      conditions.push(`t.status = $${idx++}`);
+      values.push(filters.status);
+    }
 
     if (filters.category_id) {
       conditions.push(`t.category_id = $${idx++}`);
