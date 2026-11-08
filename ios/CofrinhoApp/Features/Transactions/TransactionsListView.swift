@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Tela de Extrato Completo de Gastos e Transações do Usuário no Cofrinho.
 /// Suporta filtros avançados (Conta, Categoria, Ocultas, Período), projeção de parcelas futuras,
-/// salto direto para qualquer mês/ano e ações de deslize seguras com confirmação.
+/// salto direto para qualquer mês/ano, botão de retorno rápido para a data atual e navegação por gestos de deslize lateral.
 public struct TransactionsListView: View {
     let token: String
 
@@ -46,10 +46,17 @@ public struct TransactionsListView: View {
         selectedAccountId != nil || selectedCategoryId != nil || filterStatus != "active"
     }
 
+    private var isCurrentMonthAndYear: Bool {
+        let now = Date()
+        let curMonth = Calendar.current.component(.month, from: now)
+        let curYear = Calendar.current.component(.year, from: now)
+        return selectedMonth == curMonth && selectedYear == curYear
+    }
+
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // MARK: - Barra de Seleção de Mês/Ano (Salto Direto)
+                // MARK: - Barra de Seleção de Mês/Ano (Salto Direto & Botão Hoje)
                 monthSelectorHeader
 
                 // MARK: - Barra de Filtros Ativos (Chips)
@@ -71,6 +78,9 @@ public struct TransactionsListView: View {
                     }
                 } else if transactions.isEmpty {
                     emptyStateView
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .gesture(horizontalMonthSwipeGesture)
                 } else {
                     List {
                         ForEach(transactions) { tx in
@@ -109,6 +119,16 @@ public struct TransactionsListView: View {
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
                         }
+
+                        // Área de respiro inferior para permitir arrastar o mês mesmo no fim da lista
+                        Section {
+                            Color.clear
+                                .frame(height: 70)
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                                .contentShape(Rectangle())
+                                .gesture(horizontalMonthSwipeGesture)
+                        }
                     }
                     .listStyle(.insetGrouped)
                     .refreshable {
@@ -131,6 +151,21 @@ public struct TransactionsListView: View {
                                     .fill(Color.orange)
                                     .frame(width: 7, height: 7)
                             }
+                        }
+                    }
+                }
+
+                if !isCurrentMonthAndYear {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            goToToday()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "calendar.badge.clock")
+                                Text("Hoje")
+                                    .font(.caption.bold())
+                            }
+                            .foregroundStyle(Color.blue)
                         }
                     }
                 }
@@ -251,9 +286,9 @@ public struct TransactionsListView: View {
     // MARK: - Subcomponentes da UI
 
     private var monthSelectorHeader: some View {
-        HStack {
+        HStack(spacing: 8) {
             Button {
-                changeMonth(by: -1)
+                changeMonthWithAnimation(by: -1)
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.subheadline.bold())
@@ -286,10 +321,31 @@ public struct TransactionsListView: View {
                 .shadow(color: Color.black.opacity(0.04), radius: 4, y: 1)
             }
 
+            // Botão rápido para retornar ao Dia Atual
+            if !isCurrentMonthAndYear {
+                Button {
+                    goToToday()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.caption2.bold())
+                        Text("Hoje")
+                            .font(.caption.bold())
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.blue)
+                    .cornerRadius(14)
+                    .shadow(color: Color.blue.opacity(0.25), radius: 3, y: 1)
+                }
+                .transition(.scale.combined(with: .opacity))
+            }
+
             Spacer()
 
             Button {
-                changeMonth(by: 1)
+                changeMonthWithAnimation(by: 1)
             } label: {
                 Image(systemName: "chevron.right")
                     .font(.subheadline.bold())
@@ -299,6 +355,8 @@ public struct TransactionsListView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color(.secondarySystemBackground))
+        .contentShape(Rectangle())
+        .gesture(horizontalMonthSwipeGesture)
     }
 
     @ViewBuilder
@@ -351,6 +409,8 @@ public struct TransactionsListView: View {
                 .padding(.vertical, 6)
             }
             .background(Color(.tertiarySystemBackground))
+            .contentShape(Rectangle())
+            .gesture(horizontalMonthSwipeGesture)
         }
     }
 
@@ -444,6 +504,8 @@ public struct TransactionsListView: View {
         .padding(.horizontal, 16)
         .padding(.top, 12)
         .padding(.bottom, 6)
+        .contentShape(Rectangle())
+        .gesture(horizontalMonthSwipeGesture)
     }
 
     private func transactionRow(_ tx: TransactionModel) -> some View {
@@ -528,7 +590,7 @@ public struct TransactionsListView: View {
             Text(hasActiveFilters ? "Nenhum gasto com os filtros atuais" : "Nenhum gasto neste mês")
                 .font(.headline)
 
-            Text(hasActiveFilters ? "Tente redefinir os filtros ou alterar o mês para encontrar transações." : "Toque no botão abaixo para adicionar seu primeiro gasto.")
+            Text(hasActiveFilters ? "Tente redefinir os filtros ou deslize para os lados para navegar entre os meses." : "Toque no botão abaixo para adicionar seu primeiro gasto ou deslize para os lados para navegar.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -596,6 +658,53 @@ public struct TransactionsListView: View {
         Task {
             await loadTransactions(reset: true)
         }
+    }
+
+    private func changeMonthWithAnimation(by delta: Int) {
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.impactOccurred()
+        withAnimation(.easeInOut(duration: 0.25)) {
+            changeMonth(by: delta)
+        }
+    }
+
+    private func goToToday() {
+        let now = Date()
+        let curMonth = Calendar.current.component(.month, from: now)
+        let curYear = Calendar.current.component(.year, from: now)
+
+        guard selectedMonth != curMonth || selectedYear != curYear else { return }
+
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+
+        withAnimation(.easeInOut(duration: 0.25)) {
+            selectedMonth = curMonth
+            selectedYear = curYear
+        }
+
+        Task {
+            await loadTransactions(reset: true)
+        }
+    }
+
+    private var horizontalMonthSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 30, coordinateSpace: .local)
+            .onEnded { value in
+                let horizontal = value.translation.width
+                let vertical = value.translation.height
+                // Garante que o movimento é horizontal intencional e não rolagem vertical acidental
+                guard abs(horizontal) > abs(vertical) * 1.3 && abs(horizontal) > 40 else {
+                    return
+                }
+                if horizontal < 0 {
+                    // Deslizar para a esquerda avança para o próximo mês
+                    changeMonthWithAnimation(by: 1)
+                } else {
+                    // Deslizar para a direita volta para o mês anterior
+                    changeMonthWithAnimation(by: -1)
+                }
+            }
     }
 
     private func loadAuxiliaryData() async {

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Sheet para seleção rápida e salto direto de Mês e Ano no Extrato do Cofrinho.
-/// Permite navegar para meses distantes (ex: Novembro 2027) com atalhos e pickers nativos.
+/// Permite navegar para meses distantes (ex: Novembro 2027) com atalhos e pickers nativos sem cortes visuais.
 public struct MonthYearPickerSheetView: View {
     @Binding var selectedMonth: Int
     @Binding var selectedYear: Int
@@ -37,131 +37,121 @@ public struct MonthYearPickerSheetView: View {
 
     public var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                // MARK: - Atalhos Rápidos
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("ATALHOS RÁPIDOS")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 4)
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 18) {
+                    // MARK: - Atalhos Rápidos
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("ATALHOS RÁPIDOS")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 4)
 
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            shortcutChip(title: "Mês Atual", icon: "calendar") {
-                                let now = Date()
-                                tempMonth = Calendar.current.component(.month, from: now)
-                                tempYear = Calendar.current.component(.year, from: now)
-                            }
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                shortcutChip(title: "Hoje / Mês Atual", icon: "calendar.badge.clock", isPrimary: true) {
+                                    let now = Date()
+                                    tempMonth = Calendar.current.component(.month, from: now)
+                                    tempYear = Calendar.current.component(.year, from: now)
+                                }
 
-                            shortcutChip(title: "+1 Mês", icon: "arrow.right.circle") {
-                                addMonths(1)
-                            }
+                                shortcutChip(title: "+1 Mês", icon: "arrow.right.circle") {
+                                    addMonths(1)
+                                }
 
-                            shortcutChip(title: "+6 Meses", icon: "forward.circle") {
-                                addMonths(6)
-                            }
+                                shortcutChip(title: "+6 Meses", icon: "forward.circle") {
+                                    addMonths(6)
+                                }
 
-                            shortcutChip(title: "+1 Ano", icon: "sparkles") {
-                                tempYear += 1
-                            }
+                                shortcutChip(title: "+1 Ano", icon: "sparkles") {
+                                    tempYear += 1
+                                }
 
-                            shortcutChip(title: "-1 Ano", icon: "backward.circle") {
-                                tempYear -= 1
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.top, 12)
-
-                // MARK: - Seletor de Mês e Ano
-                VStack(spacing: 12) {
-                    Text("SELECIONE O PERÍODO")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal)
-
-                    HStack(spacing: 16) {
-                        // Picker de Mês
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Mês")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            Picker("Mês", selection: $tempMonth) {
-                                ForEach(months, id: \.0) { item in
-                                    Text(item.1).tag(item.0)
+                                shortcutChip(title: "-1 Ano", icon: "backward.circle") {
+                                    tempYear -= 1
                                 }
                             }
-                            .pickerStyle(.wheel)
-                            .frame(height: 140)
-                            .clipped()
-                            .background(Color(.secondarySystemBackground))
-                            .cornerRadius(12)
-                        }
-
-                        // Picker de Ano
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Ano")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            Picker("Ano", selection: $tempYear) {
-                                ForEach(availableYears, id: \.self) { year in
-                                    Text(String(year)).tag(year)
-                                }
-                            }
-                            .pickerStyle(.wheel)
-                            .frame(height: 140)
-                            .clipped()
-                            .background(Color(.secondarySystemBackground))
-                            .cornerRadius(12)
                         }
                     }
                     .padding(.horizontal)
-                }
+                    .padding(.top, 8)
 
-                // MARK: - Card de Pré-visualização
-                HStack(spacing: 12) {
-                    Image(systemName: "calendar.badge.clock")
-                        .font(.title2)
-                        .foregroundStyle(Color.blue)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Visualizando extrato de:")
-                            .font(.caption)
+                    // MARK: - Seletor de Mês e Ano Unificado e Espaçoso
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("SELECIONE O PERÍODO")
+                            .font(.caption.bold())
                             .foregroundStyle(.secondary)
-                        Text(previewTitle)
-                            .font(.headline.bold())
-                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 4)
+
+                        HStack(spacing: 0) {
+                            // Picker de Mês com largura total para evitar truncamento
+                            Picker("Mês", selection: $tempMonth) {
+                                ForEach(months, id: \.0) { item in
+                                    Text(item.1)
+                                        .tag(item.0)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .frame(maxWidth: .infinity)
+
+                            Divider()
+                                .frame(height: 110)
+                                .padding(.horizontal, 4)
+
+                            // Picker de Ano
+                            Picker("Ano", selection: $tempYear) {
+                                ForEach(availableYears, id: \.self) { year in
+                                    Text(String(year))
+                                        .tag(year)
+                                }
+                            }
+                            .pickerStyle(.wheel)
+                            .frame(width: 120)
+                        }
+                        .frame(height: 150)
+                        .background(Color(.secondarySystemBackground))
+                        .cornerRadius(16)
                     }
-                    Spacer()
-                }
-                .padding()
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(14)
-                .padding(.horizontal)
+                    .padding(.horizontal)
 
-                Spacer()
+                    // MARK: - Card de Pré-visualização
+                    HStack(spacing: 12) {
+                        Image(systemName: "calendar.badge.clock")
+                            .font(.title2)
+                            .foregroundStyle(Color.blue)
 
-                // MARK: - Botão de Confirmação
-                Button {
-                    selectedMonth = tempMonth
-                    selectedYear = tempYear
-                    dismiss()
-                    onApply()
-                } label: {
-                    Text("Visualizar Este Mês")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.blue)
-                        .cornerRadius(12)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Visualizando extrato de:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(previewTitle)
+                                .font(.headline.bold())
+                                .foregroundStyle(.primary)
+                        }
+                        Spacer()
+                    }
+                    .padding(14)
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(14)
+                    .padding(.horizontal)
+
+                    // MARK: - Botão de Confirmação
+                    Button {
+                        selectedMonth = tempMonth
+                        selectedYear = tempYear
+                        dismiss()
+                        onApply()
+                    } label: {
+                        Text("Visualizar Este Mês")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Color.blue)
+                            .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 16)
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 16)
             }
             .navigationTitle("Selecionar Mês")
             .navigationBarTitleDisplayMode(.inline)
@@ -173,7 +163,8 @@ public struct MonthYearPickerSheetView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .fraction(0.65)])
+        // Altura ampliada para caber todos os componentes sem cortes visuais
+        .presentationDetents([.height(520), .large])
         .presentationDragIndicator(.visible)
     }
 
@@ -188,7 +179,7 @@ public struct MonthYearPickerSheetView: View {
         return formatter.string(from: date).capitalized
     }
 
-    private func shortcutChip(title: String, icon: String, action: @escaping () -> Void) -> some View {
+    private func shortcutChip(title: String, icon: String, isPrimary: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 6) {
                 Image(systemName: icon)
@@ -198,9 +189,13 @@ public struct MonthYearPickerSheetView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Color(.secondarySystemBackground))
-            .foregroundStyle(Color.primary)
+            .background(isPrimary ? Color.blue.opacity(0.12) : Color(.secondarySystemBackground))
+            .foregroundStyle(isPrimary ? Color.blue : Color.primary)
             .cornerRadius(20)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(isPrimary ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)
+            )
         }
     }
 
@@ -219,4 +214,3 @@ public struct MonthYearPickerSheetView: View {
         tempYear = year
     }
 }
-
