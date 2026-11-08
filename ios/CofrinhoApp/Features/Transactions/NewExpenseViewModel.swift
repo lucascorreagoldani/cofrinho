@@ -114,31 +114,51 @@ public final class NewExpenseViewModel {
         isLoading = true
         defer { isLoading = false }
 
-        // Carrega categorias de forma resiliente
+        // 1. Carregamento instantâneo do cache SwiftData para 0 delay na UI
+        let cachedCats = LocalDataManager.shared.fetchCachedCategories()
+        if !cachedCats.isEmpty && self.categories.isEmpty {
+            self.categories = cachedCats
+            if selectedCategory == nil { selectedCategory = cachedCats.first }
+        }
+
+        let cachedAccs = LocalDataManager.shared.fetchCachedAccounts()
+        if !cachedAccs.isEmpty && self.accounts.isEmpty {
+            self.accounts = cachedAccs
+            if selectedAccount == nil { selectedAccount = cachedAccs.first }
+        }
+
+        // 2. Dispara sincronização em segundo plano de pendências offline
+        Task {
+            await LocalDataManager.shared.syncPendingTransactions(token: token)
+        }
+
+        // 3. Atualização resiliente de Categorias da VPS
         do {
             let loadedCats = try await categoriesAPI.listCategories(token: token)
             self.categories = loadedCats
+            LocalDataManager.shared.cacheCategories(loadedCats)
             if selectedCategory == nil, let firstCat = loadedCats.first {
                 selectedCategory = firstCat
             }
-            AppLogger.shared.info("Categorias carregadas com sucesso (\(loadedCats.count)).", category: .network)
+            AppLogger.shared.info("Categorias carregadas e sincronizadas (\(loadedCats.count)).", category: .network)
         } catch {
-            AppLogger.shared.warning("Falha ao carregar categorias no startup: \(error.localizedDescription)", category: .network)
+            AppLogger.shared.warning("Falha ao carregar categorias remotas: \(error.localizedDescription)", category: .network)
         }
 
-        // Carrega contas de forma resiliente
+        // 4. Atualização resiliente de Contas da VPS
         do {
             let loadedAccs = try await accountsAPI.listAccounts(token: token)
             self.accounts = loadedAccs
+            LocalDataManager.shared.cacheAccounts(loadedAccs)
             if selectedAccount == nil, let firstAcc = loadedAccs.first {
                 selectedAccount = firstAcc
             }
-            AppLogger.shared.info("Contas carregadas com sucesso (\(loadedAccs.count)).", category: .network)
+            AppLogger.shared.info("Contas carregadas e sincronizadas (\(loadedAccs.count)).", category: .network)
         } catch {
-            AppLogger.shared.warning("Falha ao carregar contas no startup: \(error.localizedDescription)", category: .network)
+            AppLogger.shared.warning("Falha ao carregar contas remotas: \(error.localizedDescription)", category: .network)
         }
 
-        // Carrega sugestões de gastos frequentes
+        // 5. Carrega sugestões de gastos frequentes
         do {
             let loadedSugg = try await transactionsAPI.getSuggestions(token: token)
             self.allSuggestions = loadedSugg
@@ -208,7 +228,7 @@ public final class NewExpenseViewModel {
         let dateEpochMs = Int(selectedDate.timeIntervalSince1970 * 1000)
 
         do {
-            _ = try await transactionsAPI.createTransaction(
+            let created = try await transactionsAPI.createTransaction(
                 token: token,
                 description: trimmedDesc,
                 amount: rawAmount,
@@ -221,12 +241,34 @@ public final class NewExpenseViewModel {
                 installmentsCount: installmentsCount
             )
 
+            // Atualiza cache local instantaneamente
+            LocalDataManager.shared.cacheTransactions([created])
+
             successFeedback = isInstallmentsEnabled
                 ? "Gasto parcelado em \(installmentsCount)x cadastrado com sucesso!"
                 : "Gasto cadastrado com sucesso!"
             showSuccessAlert = true
             resetForm()
             AppLogger.shared.info("Gasto registrado com sucesso: \(trimmedDesc)", category: .business)
+            return true
+        } catch let netErr as NetworkError where isConnectionError(netErr) {
+            // MARK: - Modo Offline Resiliente (SwiftData)
+            LocalDataManager.shared.saveOfflineTransaction(
+                userId: category.userId,
+                description: trimmedDesc,
+                amount: rawAmount,
+                date: dateEpochMs,
+                hasTime: hasTime,
+                category: category,
+                account: account,
+                isInstallment: isInstallmentsEnabled && account.allowsInstallments,
+                installmentsCount: installmentsCount
+            )
+
+            successFeedback = "Gasto salvo no modo offline! Será sincronizado automaticamente assim que você se reconectar."
+            showSuccessAlert = true
+            resetForm()
+            AppLogger.shared.warning("Gasto salvo localmente em modo offline devido a falha de conexão.", category: .database)
             return true
         } catch let err as any AppErrorProtocol {
             self.activeError = err
@@ -236,6 +278,15 @@ public final class NewExpenseViewModel {
             let unk = NetworkError.unknown(reason: error.localizedDescription)
             self.activeError = unk
             AppLogger.shared.error("Erro inesperado ao registrar gasto: \(error.localizedDescription)", category: .network)
+            return false
+        }
+    }
+
+    private func isConnectionError(_ error: NetworkError) -> Bool {
+        switch error {
+        case .noConnection, .serverUnreachable, .timeout:
+            return true
+        default:
             return false
         }
     }

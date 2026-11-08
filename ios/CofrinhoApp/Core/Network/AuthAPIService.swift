@@ -150,16 +150,13 @@ public struct ProblemDetailsDTO: Codable, Sendable {
 
 /// Cliente de rede para os serviços de autenticação e preferências da API do Cofrinho.
 /// Conecta-se exclusivamente ao backend de produção na VPS dedicada (198.89.99.42:3333).
-public final class AuthAPIService: @unchecked Sendable {
+public final class AuthAPIService: Sendable {
     public static let shared = AuthAPIService()
 
-    /// URL canônica e exclusiva da API do Cofrinho na VPS Host Ryzen (porta 3333 no host).
-    public let baseURL: URL = URL(string: "http://198.89.99.42:3333")!
+    private let client: APIClient
 
-    private let session: URLSession
-
-    public init(session: URLSession = .shared) {
-        self.session = session
+    public init(client: APIClient = .shared) {
+        self.client = client
         // Limpa qualquer resquício de URL local ou alternativa salva anteriormente
         UserDefaults.standard.removeObject(forKey: "cofrinho_api_base_url")
     }
@@ -167,157 +164,82 @@ public final class AuthAPIService: @unchecked Sendable {
     // MARK: - Autenticação
 
     public func register(username: String, email: String, password: String) async throws -> RegisterResponseDTO {
-        let endpoint = baseURL.appendingPathComponent("/v1/auth/register")
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 10
-
-        let payload = [
-            "username": username,
-            "email": email,
-            "password": password
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-
-        return try await performRequest(request)
+        let endpoint = try Endpoint(
+            path: "/v1/auth/register",
+            method: .post,
+            jsonBody: [
+                "username": username,
+                "email": email,
+                "password": password
+            ]
+        )
+        return try await client.request(endpoint)
     }
 
     public func login(login: String, password: String, fastLogin: Bool) async throws -> LoginResponseDTO {
-        let endpoint = baseURL.appendingPathComponent("/v1/auth/login")
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 10
-
-        let payload: [String: Any] = [
-            "login": login,
-            "password": password,
-            "fast_login": fastLogin
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-
-        return try await performRequest(request)
+        let endpoint = try Endpoint(
+            path: "/v1/auth/login",
+            method: .post,
+            jsonBody: [
+                "login": login,
+                "password": password,
+                "fast_login": fastLogin
+            ]
+        )
+        return try await client.request(endpoint)
     }
 
     public func refreshToken(refreshToken: String) async throws -> TokenRefreshResponseDTO {
-        let endpoint = baseURL.appendingPathComponent("/v1/auth/refresh")
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 10
-
-        let payload = [
-            "refresh_token": refreshToken
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-
-        return try await performRequest(request)
+        let endpoint = try Endpoint(
+            path: "/v1/auth/refresh",
+            method: .post,
+            jsonBody: [
+                "refresh_token": refreshToken
+            ]
+        )
+        return try await client.request(endpoint)
     }
 
     public func logout(token: String) async throws {
-        let endpoint = baseURL.appendingPathComponent("/v1/auth/logout")
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 10
-
-        let (_, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw NetworkError.serverError(statusCode: (response as? HTTPURLResponse)?.statusCode ?? 500, message: "Falha ao deslogar da sessão")
-        }
+        let endpoint = try Endpoint(
+            path: "/v1/auth/logout",
+            method: .post,
+            token: token
+        )
+        try await client.execute(endpoint)
     }
 
     // MARK: - Usuários & Preferências
 
     public func getProfile(token: String) async throws -> UserProfileDTO {
-        let endpoint = baseURL.appendingPathComponent("/v1/users/me")
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 10
-
-        return try await performRequest(request)
+        let endpoint = try Endpoint(
+            path: "/v1/users/me",
+            method: .get,
+            token: token
+        )
+        return try await client.request(endpoint)
     }
 
     public func getPreferences(token: String) async throws -> UserPreferencesDTO {
-        let endpoint = baseURL.appendingPathComponent("/v1/users/me/preferences")
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 10
-
-        return try await performRequest(request)
+        let endpoint = try Endpoint(
+            path: "/v1/users/me/preferences",
+            method: .get,
+            token: token
+        )
+        return try await client.request(endpoint)
     }
 
     public func updatePreferences(token: String, fastLogin: Bool? = nil, verification: Bool? = nil) async throws -> UserPreferencesDTO {
-        let endpoint = baseURL.appendingPathComponent("/v1/users/me/preferences")
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "PATCH"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.timeoutInterval = 10
-
         var payload: [String: Any] = [:]
         if let fastLogin { payload["fast_login"] = fastLogin }
         if let verification { payload["verification"] = verification }
 
-        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-        return try await performRequest(request)
-    }
-
-    // MARK: - Helper de Execução
-
-    private func performRequest<T: Decodable>(_ request: URLRequest) async throws -> T {
-        do {
-            let (data, response) = try await session.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw NetworkError.unknown(reason: "Resposta inválida do servidor")
-            }
-
-            if !(200...299).contains(httpResponse.statusCode) {
-                let problem = try? JSONDecoder().decode(ProblemDetailsDTO.self, from: data)
-                let msg = problem?.detail ?? problem?.title ?? "Erro na requisição"
-
-                switch httpResponse.statusCode {
-                case 401:
-                    if request.url?.path.contains("/login") == true {
-                        throw AuthError.invalidCredentials
-                    } else {
-                        throw AuthError.unauthorized
-                    }
-                case 409:
-                    throw AuthError.accountAlreadyExists(detail: msg)
-                case 400:
-                    throw AuthError.serverError(message: msg, incidentId: problem?.incidentId)
-                default:
-                    throw AuthError.serverError(message: msg, incidentId: problem?.incidentId)
-                }
-            }
-
-            do {
-                let decoder = JSONDecoder()
-                return try decoder.decode(T.self, from: data)
-            } catch let decodeErr {
-                let rawBody = String(data: data, encoding: .utf8) ?? "<corpo não utf-8>"
-                AppLogger.shared.error("Falha ao decodificar \(T.self): \(decodeErr). Corpo: \(rawBody)", category: .network)
-                throw NetworkError.decodingFailed(reason: "\(decodeErr.localizedDescription) (Payload: \(rawBody.prefix(80)))")
-            }
-        } catch let err as any AppErrorProtocol {
-            throw err
-        } catch let urlErr as URLError {
-            if urlErr.code == .cannotConnectToHost || urlErr.code == .networkConnectionLost || urlErr.code == .cannotFindHost {
-                throw NetworkError.serverUnreachable(host: "VPS Cofrinho (\(baseURL.host ?? "198.89.99.42"):3333)")
-            } else if urlErr.code == .timedOut {
-                throw NetworkError.timeout
-            } else if urlErr.code == .notConnectedToInternet {
-                throw NetworkError.noConnection
-            } else {
-                throw NetworkError.unknown(reason: urlErr.localizedDescription)
-            }
-        } catch {
-            throw NetworkError.unknown(reason: error.localizedDescription)
-        }
+        let endpoint = try Endpoint(
+            path: "/v1/users/me/preferences",
+            method: .patch,
+            token: token,
+            jsonBody: payload
+        )
+        return try await client.request(endpoint)
     }
 }

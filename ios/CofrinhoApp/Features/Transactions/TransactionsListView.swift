@@ -6,6 +6,10 @@ public struct TransactionsListView: View {
 
     @State private var transactions: [TransactionModel] = []
     @State private var isLoading: Bool = false
+    @State private var isLoadingMore: Bool = false
+    @State private var canLoadMore: Bool = true
+    @State private var currentPage: Int = 1
+    private let pageSize: Int = 30
     @State private var showNewExpenseSheet: Bool = false
     @State private var selectedMonth: Int = Calendar.current.component(.month, from: Date())
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
@@ -45,6 +49,9 @@ public struct TransactionsListView: View {
                     List {
                         ForEach(transactions) { tx in
                             transactionRow(tx)
+                                .onAppear {
+                                    loadMoreIfNeeded(currentItem: tx)
+                                }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                     Button(role: .destructive) {
                                         prepareDelete(tx)
@@ -65,10 +72,21 @@ public struct TransactionsListView: View {
                                     .tint(.secondary)
                                 }
                         }
+
+                        if isLoadingMore {
+                            HStack {
+                                Spacer()
+                                ProgressView()
+                                    .padding(.vertical, 8)
+                                Spacer()
+                            }
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                        }
                     }
                     .listStyle(.insetGrouped)
                     .refreshable {
-                        await loadTransactions()
+                        await loadTransactions(reset: true)
                     }
                 }
             }
@@ -92,7 +110,7 @@ public struct TransactionsListView: View {
                                 Button("Fechar") {
                                     showNewExpenseSheet = false
                                     Task {
-                                        await loadTransactions()
+                                        await loadTransactions(reset: true)
                                     }
                                 }
                             }
@@ -120,7 +138,7 @@ public struct TransactionsListView: View {
             }
             .handleAnyAppError($activeError)
             .task {
-                await loadTransactions()
+                await loadTransactions(reset: true)
             }
         }
     }
@@ -302,29 +320,111 @@ public struct TransactionsListView: View {
         selectedMonth = month
         selectedYear = year
         Task {
-            await loadTransactions()
+            await loadTransactions(reset: true)
         }
     }
 
-    private func loadTransactions() async {
-        isLoading = true
+    private func loadTransactions(reset: Bool = true) async {
+        if reset {
+            currentPage = 1
+            canLoadMore = true
+            // 1. Carrega instantaneamente o cache local do SwiftData para 0 delay na UI
+            let cached = LocalDataManager.shared.fetchCachedTransactions(month: selectedMonth, year: selectedYear)
+            if !cached.isEmpty {
+                self.transactions = cached
+            }
+        }
+
+        isLoading = reset && transactions.isEmpty
         defer { isLoading = false }
 
+        // 2. Sincroniza em segundo plano pendências locais criadas offline
+        Task {
+            await LocalDataManager.shared.syncPendingTransactions(token: token)
+        }
+
         do {
-            transactions = try await TransactionsAPIService.shared.listTransactions(
+            let fetched = try await TransactionsAPIService.shared.listTransactions(
                 token: token,
                 month: selectedMonth,
-                year: selectedYear
+                year: selectedYear,
+                page: currentPage,
+                limit: pageSize
             )
-            AppLogger.shared.info("Extrato carregado com \(transactions.count) transações.", category: .business)
+
+            if fetched.count < pageSize {
+                canLoadMore = false
+            }
+
+            if reset {
+                transactions = fetched
+            } else {
+                transactions.append(contentsOf: fetched)
+            }
+
+            LocalDataManager.shared.cacheTransactions(fetched)
+            AppLogger.shared.info("Extrato atualizado com \(transactions.count) transações.", category: .business)
         } catch let err as any AppErrorProtocol {
-            self.activeError = err
-            AppLogger.shared.error("Erro ao carregar extrato: \(err.errorDescription ?? err.localizedDescription)", category: .network)
+            // Se offline e temos dados em cache, opera silenciosamente
+            if !transactions.isEmpty && isConnectionError(err) {
+                AppLogger.shared.info("Falha de conexão com a VPS. Mantendo extrato visível via cache SwiftData.", category: .network)
+            } else {
+                self.activeError = err
+                AppLogger.shared.error("Erro ao carregar extrato: \(err.errorDescription ?? err.localizedDescription)", category: .network)
+            }
         } catch {
             let unk = NetworkError.unknown(reason: error.localizedDescription)
             self.activeError = unk
             AppLogger.shared.error("Erro ao carregar extrato: \(error.localizedDescription)", category: .network)
         }
+    }
+
+    private func loadMoreIfNeeded(currentItem: TransactionModel) {
+        guard let lastItem = transactions.last,
+              lastItem.id == currentItem.id,
+              canLoadMore,
+              !isLoading,
+              !isLoadingMore else {
+            return
+        }
+
+        isLoadingMore = true
+        currentPage += 1
+
+        Task {
+            defer { isLoadingMore = false }
+            do {
+                let fetched = try await TransactionsAPIService.shared.listTransactions(
+                    token: token,
+                    month: selectedMonth,
+                    year: selectedYear,
+                    page: currentPage,
+                    limit: pageSize
+                )
+
+                if fetched.count < pageSize {
+                    canLoadMore = false
+                }
+
+                transactions.append(contentsOf: fetched)
+                LocalDataManager.shared.cacheTransactions(fetched)
+                AppLogger.shared.info("Página \(currentPage) carregada com +\(fetched.count) gastos.", category: .business)
+            } catch {
+                canLoadMore = false
+            }
+        }
+    }
+
+    private func isConnectionError(_ error: any AppErrorProtocol) -> Bool {
+        if let netErr = error as? NetworkError {
+            switch netErr {
+            case .noConnection, .serverUnreachable, .timeout:
+                return true
+            default:
+                return false
+            }
+        }
+        return false
     }
 
     private func prepareDelete(_ tx: TransactionModel) {
@@ -346,7 +446,7 @@ public struct TransactionsListView: View {
                 cascade: cascade
             )
             AppLogger.shared.info("Transação \(tx.id) excluída (modo: \(cascade)).", category: .business)
-            await loadTransactions()
+            await loadTransactions(reset: true)
         } catch let err as any AppErrorProtocol {
             self.activeError = err
             AppLogger.shared.error("Erro ao excluir gasto: \(err.errorDescription ?? err.localizedDescription)", category: .network)
@@ -361,7 +461,7 @@ public struct TransactionsListView: View {
         do {
             _ = try await TransactionsAPIService.shared.toggleVisibility(token: token, id: tx.id)
             AppLogger.shared.info("Visibilidade alternada para transação \(tx.id).", category: .business)
-            await loadTransactions()
+            await loadTransactions(reset: true)
         } catch let err as any AppErrorProtocol {
             self.activeError = err
             AppLogger.shared.error("Erro ao alternar visibilidade: \(err.errorDescription ?? err.localizedDescription)", category: .network)

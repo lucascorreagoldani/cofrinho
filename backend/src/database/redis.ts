@@ -24,8 +24,15 @@ redis.on('error', (err) => {
 
 export async function checkRedisConnection(): Promise<boolean> {
   try {
+    /* Verifica se a instância já está pronta antes de forçar nova conexão */
+    if (redis.status === 'ready') {
+      return (await redis.ping()) === 'PONG';
+    }
+    if (redis.status === 'connecting' || redis.status === 'connect') {
+      return true;
+    }
     await redis.connect();
-    return true;
+    return (await redis.ping()) === 'PONG';
   } catch {
     return false;
   }

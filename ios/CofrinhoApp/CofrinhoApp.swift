@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 @main
 struct CofrinhoApp: App {
@@ -6,5 +7,6 @@ struct CofrinhoApp: App {
         WindowGroup {
             ContentView()
         }
+        .modelContainer(LocalDataManager.shared.container)
     }
 }

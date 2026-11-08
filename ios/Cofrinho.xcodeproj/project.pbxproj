@@ -14,6 +14,7 @@
 		1CF7D235EB6A3E6499EB2227 /* CategoriesAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14B05F2E3007525C1AC18809 /* CategoriesAPIService.swift */; };
 		27544581303823BBBDCD6873 /* AccountsAPIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FC786F196E75FF5FB29EC76 /* AccountsAPIService.swift */; };
 		297066F55DF106707D4414B6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42988F2B01589D33F1523016 /* ContentView.swift */; };
+		2C5FFC26D03AF9F9B60AF148 /* LocalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FFDE8C24849D7E44F2A27CD /* LocalModels.swift */; };
 		334C0532C8293A403B02B0DD /* CreateCategorySheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CCED32F0A41C236DF1BF35A /* CreateCategorySheetView.swift */; };
 		46D6B058020523D1C93AFE9F /* NewExpenseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72FAD0764A3DA8E5C2F86F7F /* NewExpenseView.swift */; };
 		4A4707C5D12767E73D5DE726 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 86A95467C779F02131288CB5 /* Assets.xcassets */; };
@@ -36,6 +37,8 @@
 		C702BD3296A5AF3C88CCB3CE /* LogCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AB2BB6CC7B86E417119ED77 /* LogCategory.swift */; };
 		D7607126BBCDADBCD6F860E8 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3350B94409268186B89BBE87 /* LoginView.swift */; };
 		E05EC1964B3E623F96C4CFC7 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E5EBB644BAA4E87B5BFC2C /* AppLogger.swift */; };
+		EE30601C668E58F57E512021 /* LocalDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28F64ACD9DC3CA218A33982D /* LocalDataManager.swift */; };
+		EE796059F45B85C20F78BB9C /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03876043594783074FA5ACC9 /* APIClient.swift */; };
 		F25447BA1D059109E7584115 /* TransactionsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9185A2C53EE8B6FCAFE9FDA5 /* TransactionsListView.swift */; };
 		F894ADEC9B6CDDFE98FB6012 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E3EEAABEE308E25AA04874A /* AuthViewModel.swift */; };
 		FAB16817C6A9DD53CA53B936 /* LogServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8808C68DDB8BEB5C6DA07BD /* LogServiceProtocol.swift */; };
@@ -53,9 +56,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		03876043594783074FA5ACC9 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		14B05F2E3007525C1AC18809 /* CategoriesAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoriesAPIService.swift; sourceTree = "<group>"; };
 		1FC786F196E75FF5FB29EC76 /* AccountsAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsAPIService.swift; sourceTree = "<group>"; };
 		232A7744246B43CF19F01D9D /* TransactionsAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionsAPIService.swift; sourceTree = "<group>"; };
+		28F64ACD9DC3CA218A33982D /* LocalDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDataManager.swift; sourceTree = "<group>"; };
 		3350B94409268186B89BBE87 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		423194BBE6698E54893E3638 /* NetworkError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkError.swift; sourceTree = "<group>"; };
 		42988F2B01589D33F1523016 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -74,10 +79,11 @@
 		811079180079BD47AD61FEF7 /* AppErrorProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppErrorProtocol.swift; sourceTree = "<group>"; };
 		86A95467C779F02131288CB5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		871D93BE9BE65017AF3990CD /* ErrorAndLoggingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorAndLoggingTests.swift; sourceTree = "<group>"; };
-		87F827B1B4B91FC594423015 /* CofrinhoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CofrinhoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		87F827B1B4B91FC594423015 /* CofrinhoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CofrinhoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9185A2C53EE8B6FCAFE9FDA5 /* TransactionsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionsListView.swift; sourceTree = "<group>"; };
-		92CCA8981E0D4050DBD21296 /* Cofrinho.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cofrinho.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		92CCA8981E0D4050DBD21296 /* Cofrinho.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cofrinho.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		978ACB763B7CF9A30BE86104 /* AuthErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthErrorTests.swift; sourceTree = "<group>"; };
+		9FFDE8C24849D7E44F2A27CD /* LocalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModels.swift; sourceTree = "<group>"; };
 		B4B137D478046A743562212D /* NewExpenseViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewExpenseViewModel.swift; sourceTree = "<group>"; };
 		BA9B92BD256FBD451CAEAFE5 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		C63CCE2B3D980F1941D41915 /* AuthError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthError.swift; sourceTree = "<group>"; };
@@ -115,6 +121,7 @@
 			isa = PBXGroup;
 			children = (
 				1FC786F196E75FF5FB29EC76 /* AccountsAPIService.swift */,
+				03876043594783074FA5ACC9 /* APIClient.swift */,
 				567FC113E998EC5BB944735E /* AuthAPIService.swift */,
 				14B05F2E3007525C1AC18809 /* CategoriesAPIService.swift */,
 				232A7744246B43CF19F01D9D /* TransactionsAPIService.swift */,
@@ -148,6 +155,7 @@
 		38AC7F6F1C4CD0F5D87D2001 /* Data */ = {
 			isa = PBXGroup;
 			children = (
+				D3F4719691A4694C2D73F7B1 /* Local */,
 				F79A11F308ECC52E55115181 /* Models */,
 			);
 			path = Data;
@@ -244,6 +252,15 @@
 			);
 			sourceTree = "<group>";
 		};
+		D3F4719691A4694C2D73F7B1 /* Local */ = {
+			isa = PBXGroup;
+			children = (
+				28F64ACD9DC3CA218A33982D /* LocalDataManager.swift */,
+				9FFDE8C24849D7E44F2A27CD /* LocalModels.swift */,
+			);
+			path = Local;
+			sourceTree = "<group>";
+		};
 		E73F51EA9742F42B1B9172FF /* Profile */ = {
 			isa = PBXGroup;
 			children = (
@@ -308,7 +325,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2720;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					4A2C0C33F0FE5C9170A516BE = {
 						ProvisioningStyle = Automatic;
@@ -363,6 +380,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EE796059F45B85C20F78BB9C /* APIClient.swift in Sources */,
 				048AD68AB822E0459F55A821 /* AccountModel.swift in Sources */,
 				27544581303823BBBDCD6873 /* AccountsAPIService.swift in Sources */,
 				1C3F10BF94E3B68712A45A32 /* AppErrorProtocol.swift in Sources */,
@@ -379,6 +397,8 @@
 				334C0532C8293A403B02B0DD /* CreateCategorySheetView.swift in Sources */,
 				8A25BDF7F9E67B6604EA1B9E /* DatabaseError.swift in Sources */,
 				8873E1945EF4FB68D8219DA4 /* KeychainHelper.swift in Sources */,
+				EE30601C668E58F57E512021 /* LocalDataManager.swift in Sources */,
+				2C5FFC26D03AF9F9B60AF148 /* LocalModels.swift in Sources */,
 				C702BD3296A5AF3C88CCB3CE /* LogCategory.swift in Sources */,
 				FAB16817C6A9DD53CA53B936 /* LogServiceProtocol.swift in Sources */,
 				D7607126BBCDADBCD6F860E8 /* LoginView.swift in Sources */,
@@ -414,7 +434,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = J747JQ5H3S;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = CofrinhoApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -441,7 +460,6 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = J747JQ5H3S;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				INFOPLIST_FILE = CofrinhoApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -465,7 +483,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -519,7 +536,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -552,7 +568,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -599,7 +614,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;

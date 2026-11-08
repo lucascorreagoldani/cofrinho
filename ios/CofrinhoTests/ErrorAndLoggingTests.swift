@@ -49,7 +49,7 @@ struct ErrorAndLoggingTests {
     func testLogLevelsAndCategories() {
         #expect(LogLevel.debug < LogLevel.error)
         #expect(LogLevel.info < LogLevel.critical)
-        #expect(LogCategory.allCases.count == 5)
+        #expect(LogCategory.allCases.count == 7)
     }
 
     @Test("Validação do MockLogService em conformidade com LogServiceProtocol")
