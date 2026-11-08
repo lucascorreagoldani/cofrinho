@@ -298,3 +298,4 @@ public final class LocalDataManager {
         return entities.map { $0.toModel() }
     }
 }
+
