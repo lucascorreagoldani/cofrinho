@@ -19,7 +19,7 @@ public struct TransactionsListView: View {
     // Filtros e Navegação Temporal
     @State private var selectedMonth: Int = Calendar.current.component(.month, from: Date())
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
-    @State private var selectedDay: Int? = nil
+    @State private var selectedDay: Int? = Calendar.current.component(.day, from: Date())
     @State private var lastSwipeTimestamp: TimeInterval = 0
     @State private var selectedAccountId: Int? = nil
     @State private var selectedCategoryId: Int? = nil
@@ -59,9 +59,25 @@ public struct TransactionsListView: View {
         return selectedMonth == curMonth && selectedYear == curYear
     }
 
+    private var todayDay: Int {
+        Calendar.current.component(.day, from: Date())
+    }
+
+    private var isViewingToday: Bool {
+        isCurrentMonthAndYear && selectedDay == todayDay
+    }
+
     private var availableTransactionDays: [Int] {
         let calendar = Calendar.current
         let days = transactions.map { calendar.component(.day, from: $0.dateValue) }
+        return Array(Set(days)).sorted()
+    }
+
+    private var selectableDays: [Int] {
+        var days = availableTransactionDays
+        if isCurrentMonthAndYear {
+            days.append(todayDay)
+        }
         return Array(Set(days)).sorted()
     }
 
@@ -202,7 +218,7 @@ public struct TransactionsListView: View {
                     }
                 }
 
-                if !isCurrentMonthAndYear || selectedDay != nil {
+                if !isViewingToday {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             goToToday()
@@ -431,7 +447,8 @@ public struct TransactionsListView: View {
                         .id(-1)
                         .buttonStyle(.plain)
 
-                        ForEach(availableTransactionDays, id: \.self) { day in
+                        ForEach(selectableDays, id: \.self) { day in
+                            let isTodayChip = isCurrentMonthAndYear && day == todayDay
                             Button {
                                 let haptic = UIImpactFeedbackGenerator(style: .light)
                                 haptic.impactOccurred()
@@ -439,7 +456,7 @@ public struct TransactionsListView: View {
                                     selectedDay = (selectedDay == day) ? nil : day
                                 }
                             } label: {
-                                Text("Dia \(String(format: "%02d", day))")
+                                Text(isTodayChip ? String(format: "Hoje (%02d)", day) : String(format: "Dia %02d", day))
                                     .font(.caption.bold().monospacedDigit())
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
@@ -453,6 +470,9 @@ public struct TransactionsListView: View {
                         }
                     }
                     .padding(.vertical, 2)
+                }
+                .onAppear {
+                    proxy.scrollTo(selectedDay ?? -1, anchor: .center)
                 }
                 .onChange(of: selectedDay) { _, newDay in
                     withAnimation(.easeInOut(duration: 0.25)) {
@@ -715,16 +735,39 @@ public struct TransactionsListView: View {
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 16) {
+        let emptyTitle: String = {
+            if hasActiveFilters {
+                return "Nenhum gasto com os filtros atuais"
+            }
+            if let day = selectedDay {
+                if isCurrentMonthAndYear && day == todayDay {
+                    return String(format: "Nenhum gasto hoje (%02d/%02d)", day, selectedMonth)
+                }
+                return String(format: "Nenhum gasto no Dia %02d/%02d", day, selectedMonth)
+            }
+            return "Nenhum gasto neste mês"
+        }()
+
+        let emptySubtitle: String = {
+            if hasActiveFilters {
+                return "Tente redefinir os filtros ou deslize para os lados para navegar entre os dias e meses."
+            }
+            if selectedDay != nil {
+                return "Deslize para os lados para ver outros dias, toque em 'Mês Inteiro' ou adicione um novo gasto."
+            }
+            return "Toque no botão abaixo para adicionar seu primeiro gasto ou deslize para os lados para navegar."
+        }()
+
+        return VStack(spacing: 16) {
             Spacer()
             Image(systemName: hasActiveFilters ? "line.3.horizontal.decrease.circle" : "tray.fill")
                 .font(.system(size: 48))
                 .foregroundStyle(Color.gray.opacity(0.6))
 
-            Text(hasActiveFilters ? "Nenhum gasto com os filtros atuais" : "Nenhum gasto neste mês")
+            Text(emptyTitle)
                 .font(.headline)
 
-            Text(hasActiveFilters ? "Tente redefinir os filtros ou deslize para os lados para navegar entre os dias e meses." : "Toque no botão abaixo para adicionar seu primeiro gasto ou deslize para os lados para navegar.")
+            Text(emptySubtitle)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -780,7 +823,7 @@ public struct TransactionsListView: View {
         guard now - lastSwipeTimestamp > 0.25 else { return }
         lastSwipeTimestamp = now
 
-        let sortedDays = availableTransactionDays
+        let sortedDays = selectableDays
         guard !sortedDays.isEmpty else { return }
 
         let haptic = UIImpactFeedbackGenerator(style: .light)
@@ -836,9 +879,10 @@ public struct TransactionsListView: View {
         let now = Date()
         let curMonth = Calendar.current.component(.month, from: now)
         let curYear = Calendar.current.component(.year, from: now)
+        let curDay = Calendar.current.component(.day, from: now)
 
         let monthChanged = (selectedMonth != curMonth || selectedYear != curYear)
-        guard monthChanged || selectedDay != nil else { return }
+        guard monthChanged || selectedDay != curDay else { return }
 
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.impactOccurred()
@@ -846,7 +890,7 @@ public struct TransactionsListView: View {
         withAnimation(.easeInOut(duration: 0.25)) {
             selectedMonth = curMonth
             selectedYear = curYear
-            selectedDay = nil
+            selectedDay = curDay
         }
 
         if monthChanged {
@@ -874,8 +918,8 @@ public struct TransactionsListView: View {
     }
 
     private func clearInvalidSelectedDayIfNeeded() {
-        if let currentDay = selectedDay, !availableTransactionDays.contains(currentDay) {
-            selectedDay = nil
+        if let currentDay = selectedDay, !selectableDays.contains(currentDay) {
+            selectedDay = isCurrentMonthAndYear ? todayDay : nil
         }
     }
 
