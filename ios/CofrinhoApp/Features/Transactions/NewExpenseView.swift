@@ -61,6 +61,8 @@ public struct NewExpenseView: View {
                             TextField("R$ 0,00", text: $viewModel.amountInputString)
                                 .focused($isAmountFocused)
                                 .keyboardType(.numberPad)
+                                .autocorrectionDisabled(true)
+                                .textInputAutocapitalization(.never)
                                 .multilineTextAlignment(.trailing)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 12)

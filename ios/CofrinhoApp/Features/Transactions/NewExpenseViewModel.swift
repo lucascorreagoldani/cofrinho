@@ -55,7 +55,9 @@ public final class NewExpenseViewModel {
     }
 
     private func formatAmountString() {
-        amountInputString = rawAmount.brlCurrencyFormatted
+        let formatted = rawAmount.brlCurrencyFormatted
+        guard amountInputString != formatted else { return }
+        amountInputString = formatted
     }
 
     // MARK: - Cálculo de Parcelamento e Datas de Fatura

@@ -5,11 +5,6 @@ import SwiftUI
 /// filtros avançados via Enums, projeção de parcelas futuras, detalhes expansíveis por lançamento,
 /// salto direto para qualquer mês/ano e sincronização offline com SwiftData.
 public struct TransactionsListView: View {
-    private enum DayJumpTarget: Sendable {
-        case firstAvailable
-        case lastAvailable
-    }
-
     let token: String
 
     @State private var transactions: [TransactionModel] = []
@@ -25,7 +20,6 @@ public struct TransactionsListView: View {
     @State private var selectedMonth: Int = Calendar.current.component(.month, from: Date())
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
     @State private var selectedDay: Int? = nil
-    @State private var pendingDayJumpAfterMonthLoad: DayJumpTarget? = nil
     @State private var selectedAccountId: Int? = nil
     @State private var selectedCategoryId: Int? = nil
     @State private var filterStatus: TransactionFilterStatus = .active
@@ -273,7 +267,6 @@ public struct TransactionsListView: View {
                     categories: availableCategories,
                     onApply: {
                         selectedDay = nil
-                        pendingDayJumpAfterMonthLoad = nil
                         Task {
                             await loadTransactions(reset: true)
                         }
@@ -287,7 +280,6 @@ public struct TransactionsListView: View {
                     selectedYear: $selectedYear,
                     onApply: {
                         selectedDay = nil
-                        pendingDayJumpAfterMonthLoad = nil
                         Task {
                             await loadTransactions(reset: true)
                         }
@@ -779,40 +771,32 @@ public struct TransactionsListView: View {
         return "\(monthName) \(selectedYear)"
     }
 
-    /// Navegação inteligente por dia:
-    /// - direction > 0 (avançar): salta diretamente para o próximo dia do mês que possua lançamentos;
-    ///   caso não exista, avança para o mês seguinte selecionando o primeiro dia com lançamento.
-    /// - direction < 0 (voltar): salta diretamente para o dia anterior mais recente que possua lançamentos;
-    ///   caso não exista, volta para o mês anterior selecionando o último dia com lançamento.
+    /// Navegação inteligente por dia estritamente dentro dos dias com lançamentos do mês atual:
+    /// - Evita trocar de mês ou disparar requisições de rede durante o deslize entre datas.
+    /// - Alterna suavemente entre os dias com gastos e a visão "Mês Inteiro".
     private func navigateDaySmart(direction: Int) {
+        let sortedDays = availableTransactionDays
+        guard !sortedDays.isEmpty else { return }
+
         let haptic = UIImpactFeedbackGenerator(style: .light)
         haptic.impactOccurred()
 
-        let sortedDays = availableTransactionDays
         let currentCalendarDay = Calendar.current.component(.day, from: Date())
 
-        if direction > 0 {
-            let referenceDay = selectedDay ?? (isCurrentMonthAndYear ? currentCalendarDay : 0)
-            if let nextActiveDay = sortedDays.first(where: { $0 > referenceDay }) {
-                withAnimation(.easeInOut(duration: 0.22)) {
-                    selectedDay = nextActiveDay
+        withAnimation(.easeInOut(duration: 0.22)) {
+            if let currentDay = selectedDay {
+                if direction > 0 {
+                    selectedDay = sortedDays.first(where: { $0 > currentDay })
+                } else {
+                    selectedDay = sortedDays.last(where: { $0 < currentDay })
                 }
             } else {
-                pendingDayJumpAfterMonthLoad = .firstAvailable
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    changeMonth(by: 1, resetSelectedDay: false)
-                }
-            }
-        } else {
-            let referenceDay = selectedDay ?? (isCurrentMonthAndYear ? currentCalendarDay : 32)
-            if let previousActiveDay = sortedDays.last(where: { $0 < referenceDay }) {
-                withAnimation(.easeInOut(duration: 0.22)) {
-                    selectedDay = previousActiveDay
-                }
-            } else {
-                pendingDayJumpAfterMonthLoad = .lastAvailable
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    changeMonth(by: -1, resetSelectedDay: false)
+                if direction > 0 {
+                    let refDay = isCurrentMonthAndYear ? currentCalendarDay : 0
+                    selectedDay = sortedDays.first(where: { $0 > refDay }) ?? sortedDays.first
+                } else {
+                    let refDay = isCurrentMonthAndYear ? currentCalendarDay : 32
+                    selectedDay = sortedDays.last(where: { $0 < refDay }) ?? sortedDays.last
                 }
             }
         }
@@ -833,7 +817,6 @@ public struct TransactionsListView: View {
         selectedYear = year
         if resetSelectedDay {
             selectedDay = nil
-            pendingDayJumpAfterMonthLoad = nil
         }
         Task {
             await loadTransactions(reset: true)
@@ -863,7 +846,6 @@ public struct TransactionsListView: View {
             selectedMonth = curMonth
             selectedYear = curYear
             selectedDay = nil
-            pendingDayJumpAfterMonthLoad = nil
         }
 
         if monthChanged {
@@ -904,17 +886,8 @@ public struct TransactionsListView: View {
             }
     }
 
-    private func applyDayJumpIfNeeded() {
-        let days = availableTransactionDays
-        if let jumpTarget = pendingDayJumpAfterMonthLoad {
-            switch jumpTarget {
-            case .firstAvailable:
-                selectedDay = days.first
-            case .lastAvailable:
-                selectedDay = days.last
-            }
-            pendingDayJumpAfterMonthLoad = nil
-        } else if let currentDay = selectedDay, !days.contains(currentDay) {
+    private func clearInvalidSelectedDayIfNeeded() {
+        if let currentDay = selectedDay, !availableTransactionDays.contains(currentDay) {
             selectedDay = nil
         }
     }
@@ -999,7 +972,7 @@ public struct TransactionsListView: View {
 
             if reset {
                 transactions = fetched
-                applyDayJumpIfNeeded()
+                clearInvalidSelectedDayIfNeeded()
             } else {
                 transactions.append(contentsOf: fetched)
             }
@@ -1012,7 +985,7 @@ public struct TransactionsListView: View {
             if isConnectionError(err) {
                 loadTransactionsFromLocalCache()
                 if reset {
-                    applyDayJumpIfNeeded()
+                    clearInvalidSelectedDayIfNeeded()
                 }
                 AppLogger.shared.info("Falha de conexão com a VPS. Mantendo extrato visível via cache SwiftData.", category: .network)
             } else {
@@ -1107,7 +1080,7 @@ public struct TransactionsListView: View {
         if tx.id < 0 {
             LocalDataManager.shared.markOfflineDelete(id: tx.id, cascade: cascade)
             loadTransactionsFromLocalCache()
-            applyDayJumpIfNeeded()
+            clearInvalidSelectedDayIfNeeded()
             return
         }
 
@@ -1123,7 +1096,7 @@ public struct TransactionsListView: View {
         } catch let err as any AppErrorProtocol where isConnectionError(err) {
             LocalDataManager.shared.markOfflineDelete(id: tx.id, cascade: cascade)
             loadTransactionsFromLocalCache()
-            applyDayJumpIfNeeded()
+            clearInvalidSelectedDayIfNeeded()
             AppLogger.shared.warning("Sem conexão: exclusão de \(tx.id) agendada na fila offline.", category: .database)
         } catch let err as any AppErrorProtocol {
             self.activeError = err
@@ -1140,7 +1113,7 @@ public struct TransactionsListView: View {
         if tx.id < 0 {
             LocalDataManager.shared.markOfflineToggleVisibility(id: tx.id)
             loadTransactionsFromLocalCache()
-            applyDayJumpIfNeeded()
+            clearInvalidSelectedDayIfNeeded()
             return
         }
 
@@ -1152,7 +1125,7 @@ public struct TransactionsListView: View {
         } catch let err as any AppErrorProtocol where isConnectionError(err) {
             LocalDataManager.shared.markOfflineToggleVisibility(id: tx.id)
             loadTransactionsFromLocalCache()
-            applyDayJumpIfNeeded()
+            clearInvalidSelectedDayIfNeeded()
             AppLogger.shared.warning("Sem conexão: alteração de visibilidade de \(tx.id) agendada na fila offline.", category: .database)
         } catch let err as any AppErrorProtocol {
             self.activeError = err
