@@ -6,11 +6,16 @@ import { updatePreferencesBodySchema } from './users.schemas.js';
 export class UsersService {
   async getProfile(userId: number | string) {
     const numericId = Number(userId);
+    const nowTimestamp = Date.now();
 
     const result = await dbPool.query(
-      `SELECT id, username, email, first_ip, last_ip, first_login, last_login, registered_at
-       FROM users WHERE id = $1`,
-      [numericId]
+      `UPDATE users
+       SET last_login = $2,
+           first_login = COALESCE(first_login, $2),
+           updated_at = $2
+       WHERE id = $1
+       RETURNING id, username, email, first_ip, last_ip, first_login, last_login, registered_at`,
+      [numericId, nowTimestamp]
     );
 
     if (result.rows.length === 0) {

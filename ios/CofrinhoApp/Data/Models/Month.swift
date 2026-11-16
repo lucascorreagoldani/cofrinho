@@ -2,7 +2,7 @@ import Foundation
 
 /// Representação fortemente tipada e internacionalizada dos meses do ano no Cofrinho.
 /// Totalmente compatível com Swift 6 strict concurrency, CaseIterable, Identifiable, Comparable
-/// e integrado à localização automática de sistemas Apple (Foundation Calendar / Locale).
+/// e integrado à localização Apple com fallback canônico para Português do Brasil.
 public enum Month: Int, CaseIterable, Identifiable, Comparable, Sendable {
     case january = 1
     case february = 2
@@ -19,15 +19,24 @@ public enum Month: Int, CaseIterable, Identifiable, Comparable, Sendable {
 
     public var id: Int { rawValue }
 
+    /// Calendário padrão em Português do Brasil para consistência da interface.
+    public static var appLocaleCalendar: Calendar {
+        var cal = Calendar.current
+        if cal.locale?.language.languageCode?.identifier != "pt" {
+            cal.locale = Locale(identifier: "pt_BR")
+        }
+        return cal
+    }
+
     /// Inicializa a partir de uma data ou componente de data
     public init(date: Date = Date(), calendar: Calendar = .current) {
         let monthNumber = calendar.component(.month, from: date)
         self = Month(rawValue: monthNumber) ?? .january
     }
 
-    /// Nome completo do mês localizado conforme o Locale e Calendário do dispositivo.
-    /// Exemplo: "Janeiro" em pt_BR, "January" em en_US, "Enero" em es_ES, etc.
-    public func localizedName(calendar: Calendar = .current) -> String {
+    /// Nome completo do mês localizado conforme o Locale e Calendário informados.
+    /// Utiliza pt_BR por padrão para evitar nomes em inglês quando o sistema/simulador estiver em en_US.
+    public func localizedName(calendar: Calendar = Month.appLocaleCalendar) -> String {
         let symbols = calendar.monthSymbols
         let index = rawValue - 1
         if symbols.indices.contains(index) {
@@ -36,8 +45,8 @@ public enum Month: Int, CaseIterable, Identifiable, Comparable, Sendable {
         return defaultFallbackName
     }
 
-    /// Nome abreviado do mês (ex: "Jan", "Fev" em pt_BR, "Jan", "Feb" em en_US).
-    public func shortName(calendar: Calendar = .current) -> String {
+    /// Nome abreviado do mês (ex: "Jan", "Fev").
+    public func shortName(calendar: Calendar = Month.appLocaleCalendar) -> String {
         let symbols = calendar.shortMonthSymbols
         let index = rawValue - 1
         if symbols.indices.contains(index) {
@@ -68,4 +77,3 @@ public enum Month: Int, CaseIterable, Identifiable, Comparable, Sendable {
         }
     }
 }
-

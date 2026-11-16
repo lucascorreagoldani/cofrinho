@@ -12,6 +12,7 @@ public final class LocalTransaction {
     public var type: String
     public var amount: Double
     public var transactionDescription: String
+    public var notes: String?
     public var date: Int // Unix epoch ms
     public var hasTime: Bool
     public var status: String // active, hidden, deleted
@@ -42,6 +43,7 @@ public final class LocalTransaction {
         type: String = "expense",
         amount: Double,
         transactionDescription: String,
+        notes: String? = nil,
         date: Int,
         hasTime: Bool = false,
         status: String = "active",
@@ -68,6 +70,7 @@ public final class LocalTransaction {
         self.type = type
         self.amount = amount
         self.transactionDescription = transactionDescription
+        self.notes = notes
         self.date = date
         self.hasTime = hasTime
         self.status = status
@@ -130,6 +133,7 @@ public final class LocalTransaction {
             type: type,
             amount: Decimal(amount),
             description: transactionDescription,
+            notes: notes,
             date: date,
             hasTime: hasTime,
             status: status,

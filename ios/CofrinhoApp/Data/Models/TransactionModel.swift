@@ -68,6 +68,7 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
     public var type: String
     public var amount: Decimal
     public var description: String
+    public var notes: String?
     public var date: Int
     public var hasTime: Bool
     public var status: String
@@ -88,6 +89,7 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
         case type
         case amount
         case description
+        case notes
         case date
         case hasTime = "has_time"
         case status
@@ -109,6 +111,7 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
         type: String = "expense",
         amount: Decimal,
         description: String,
+        notes: String? = nil,
         date: Int = Int(Date().timeIntervalSince1970 * 1000),
         hasTime: Bool = false,
         status: String = "active",
@@ -128,6 +131,7 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
         self.type = type
         self.amount = amount
         self.description = description
+        self.notes = notes
         self.date = date
         self.hasTime = hasTime
         self.status = status
@@ -159,6 +163,7 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
         }
 
         self.description = try container.decode(String.self, forKey: .description)
+        self.notes = try container.decodeIfPresent(String.self, forKey: .notes)
         self.date = try container.decode(Int.self, forKey: .date)
         self.hasTime = try container.decode(Bool.self, forKey: .hasTime)
         self.status = try container.decode(String.self, forKey: .status)

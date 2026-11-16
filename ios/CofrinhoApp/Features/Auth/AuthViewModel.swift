@@ -30,6 +30,10 @@ public final class AuthViewModel {
     public var isLoading: Bool = false
     public var activeError: (any AppErrorProtocol)?
     public var showBiometryPromptDialog: Bool = false
+    public var isLockedByBiometry: Bool = false
+
+    private var isAuthenticatingBiometry: Bool = false
+    private var lastBackgroundTimestamp: Date? = nil
 
     // Chaves de Persistência Local Segura (Keychain & UserDefaults)
     private let tokenKey = "cofrinho_jwt_token"
@@ -82,11 +86,16 @@ public final class AuthViewModel {
 
             let isBiometryEnabled = self.currentPreferences?.verification ?? localBiometryPref
             if isBiometryEnabled && BiometryService.shared.isBiometryAvailable {
+                self.isLockedByBiometry = true
+                self.isAuthenticatingBiometry = true
+                defer { self.isAuthenticatingBiometry = false }
+
                 do {
                     let authenticated = try await BiometryService.shared.authenticate(
                         reason: "Desbloqueie o Cofrinho para acessar suas finanças."
                     )
                     if authenticated {
+                        self.isLockedByBiometry = false
                         self.isAuthenticated = true
                     }
                 } catch let err as SecurityError {
@@ -95,7 +104,75 @@ public final class AuthViewModel {
                     self.activeError = SecurityError.authenticationFailed(reason: error.localizedDescription)
                 }
             } else {
+                self.isLockedByBiometry = false
                 self.isAuthenticated = true
+            }
+        }
+    }
+
+    // MARK: - Ciclo de Vida em Primeiro/Segundo Plano (Face ID + Último Acesso)
+
+    public func handleScenePhaseChange(_ newPhase: ScenePhase) {
+        switch newPhase {
+        case .background:
+            guard isAuthenticated else { return }
+            lastBackgroundTimestamp = Date()
+            let localBiometryPref = UserDefaults.standard.bool(forKey: biometryPrefKey)
+            let isBiometryEnabled = currentPreferences?.verification ?? localBiometryPref
+            if isBiometryEnabled && BiometryService.shared.isBiometryAvailable {
+                isLockedByBiometry = true
+            }
+        case .active:
+            guard isAuthenticated, lastBackgroundTimestamp != nil else { return }
+            lastBackgroundTimestamp = nil
+            Task {
+                await unlockAndRefreshSessionOnForeground()
+            }
+        case .inactive:
+            break
+        @unknown default:
+            break
+        }
+    }
+
+    public func unlockAndRefreshSessionOnForeground() async {
+        guard isAuthenticated, !isAuthenticatingBiometry else { return }
+
+        let localBiometryPref = UserDefaults.standard.bool(forKey: biometryPrefKey)
+        let isBiometryEnabled = currentPreferences?.verification ?? localBiometryPref
+
+        if isLockedByBiometry && isBiometryEnabled && BiometryService.shared.isBiometryAvailable {
+            isAuthenticatingBiometry = true
+            defer { isAuthenticatingBiometry = false }
+
+            do {
+                let authenticated = try await BiometryService.shared.authenticate(
+                    reason: "Desbloqueie o Cofrinho para acessar suas finanças."
+                )
+                if authenticated {
+                    self.isLockedByBiometry = false
+                    await refreshProfileAndLastLogin()
+                }
+            } catch let err as SecurityError {
+                self.activeError = err
+            } catch {
+                self.activeError = SecurityError.authenticationFailed(reason: error.localizedDescription)
+            }
+        } else {
+            self.isLockedByBiometry = false
+            await refreshProfileAndLastLogin()
+        }
+    }
+
+    public func refreshProfileAndLastLogin() async {
+        if let savedRefreshToken = KeychainHelper.shared.read(key: refreshTokenKey),
+           !savedRefreshToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           !isJWTExpired(savedRefreshToken) {
+            _ = await prepareValidSession(savedRefreshToken: savedRefreshToken)
+        } else if let currentToken = token, !currentToken.isEmpty, !isJWTExpired(currentToken) {
+            if let profile = try? await AuthAPIService.shared.getProfile(token: currentToken) {
+                self.currentUser = profile
+                saveUserToCache(profile)
             }
         }
     }
@@ -397,6 +474,9 @@ public final class AuthViewModel {
         self.currentUser = nil
         self.currentPreferences = nil
         self.isAuthenticated = false
+        self.isLockedByBiometry = false
+        self.isAuthenticatingBiometry = false
+        self.lastBackgroundTimestamp = nil
     }
 
     // MARK: - Helpers de Cache Local (Offline & Instant Launch)

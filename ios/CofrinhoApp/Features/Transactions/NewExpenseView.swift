@@ -8,6 +8,7 @@ public struct NewExpenseView: View {
 
     @FocusState private var isAmountFocused: Bool
     @FocusState private var isDescriptionFocused: Bool
+    @FocusState private var isNotesFocused: Bool
 
     public init(token: String) {
         self.token = token
@@ -247,7 +248,30 @@ public struct NewExpenseView: View {
                     .background(Color(.secondarySystemBackground))
                     .clipShape(.rect(cornerRadius: 10))
 
-                    // LINHA 3: Seção de Parcelamento (Ativa dinamicamente se a conta permitir)
+                    // LINHA 3.5: Observação Opcional do Lançamento
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 4) {
+                            Text("📝")
+                                .font(.caption2)
+                            Text("Observação (opcional)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        TextField("Ex: Comprado na promoção, dividir com...", text: $viewModel.notesText, axis: .vertical)
+                            .lineLimit(1...3)
+                            .focused($isNotesFocused)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color(.secondarySystemBackground))
+                            .clipShape(.rect(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(isNotesFocused ? Color.blue : Color.clear, lineWidth: 1.5)
+                            )
+                    }
+
+                    // LINHA 4: Seção de Parcelamento (Ativa dinamicamente se a conta permitir)
                     if let account = viewModel.selectedAccount, account.allowsInstallments {
                         VStack(alignment: .leading, spacing: 12) {
                             Toggle(isOn: $viewModel.isInstallmentsEnabled) {
@@ -315,6 +339,7 @@ public struct NewExpenseView: View {
 
                         isAmountFocused = false
                         isDescriptionFocused = false
+                        isNotesFocused = false
 
                         Task {
                             _ = await viewModel.saveTransaction(token: token)

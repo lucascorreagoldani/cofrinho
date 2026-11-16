@@ -46,6 +46,7 @@ export class TransactionsService {
       const account = accResult.rows[0];
 
       const nowTimestamp = Date.now();
+      const cleanNotes = data.notes && data.notes.trim().length > 0 ? data.notes.trim() : null;
       const isInstallment = Boolean(data.installments?.enabled && (data.installments?.count ?? 1) > 1);
 
       if (isInstallment) {
@@ -92,12 +93,12 @@ export class TransactionsService {
 
           const insertQuery = `
             INSERT INTO transactions (
-              user_id, category_id, account_id, type, amount, description,
+              user_id, category_id, account_id, type, amount, description, notes,
               date, has_time, status, is_installment, installment_number,
               total_installments, installment_group_id, created_at, updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', true, $9, $10, $11, $12, $12)
-            RETURNING id, user_id, category_id, account_id, type, amount, description,
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', true, $10, $11, $12, $13, $13)
+            RETURNING id, user_id, category_id, account_id, type, amount, description, notes,
                       date, has_time, status, is_installment, installment_number,
                       total_installments, installment_group_id, created_at, updated_at
           `;
@@ -109,6 +110,7 @@ export class TransactionsService {
             data.type,
             amountThisInstallment,
             descriptionWithInstallment,
+            cleanNotes,
             installmentTimestamp,
             data.has_time,
             installmentNumber,
@@ -132,11 +134,11 @@ export class TransactionsService {
       /* Transação Simples (À Vista) */
       const insertQuery = `
         INSERT INTO transactions (
-          user_id, category_id, account_id, type, amount, description,
+          user_id, category_id, account_id, type, amount, description, notes,
           date, has_time, status, is_installment, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', false, $9, $9)
-        RETURNING id, user_id, category_id, account_id, type, amount, description,
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', false, $10, $10)
+        RETURNING id, user_id, category_id, account_id, type, amount, description, notes,
                   date, has_time, status, is_installment, installment_number,
                   total_installments, installment_group_id, created_at, updated_at
       `;
@@ -148,6 +150,7 @@ export class TransactionsService {
         data.type,
         data.amount,
         data.description,
+        cleanNotes,
         data.date,
         data.has_time,
         nowTimestamp,
@@ -205,7 +208,7 @@ export class TransactionsService {
 
     const query = `
       SELECT
-        t.id, t.user_id, t.category_id, t.account_id, t.type, t.amount, t.description,
+        t.id, t.user_id, t.category_id, t.account_id, t.type, t.amount, t.description, t.notes,
         t.date, t.has_time, t.status, t.is_installment, t.installment_number,
         t.total_installments, t.installment_group_id, t.created_at, t.updated_at,
         c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
@@ -219,6 +222,47 @@ export class TransactionsService {
     `;
 
     const result = await dbPool.query(query, values);
+
+    return result.rows.map((row) =>
+      this.mapTransactionRow(row, {
+        id: Number(row.category_id),
+        name: row.category_name,
+        icon: row.category_icon,
+        color: row.category_color,
+      }, {
+        id: Number(row.account_id),
+        name: row.account_name,
+        type: row.account_type,
+        icon: row.account_icon,
+        color: row.account_color,
+      })
+    );
+  }
+
+  /**
+   * Lista todas as parcelas associadas a um mesmo installment_group_id em ordem cronológica.
+   */
+  async listInstallmentGroup(userId: number, groupId: string) {
+    const query = `
+      SELECT
+        t.id, t.user_id, t.category_id, t.account_id, t.type, t.amount, t.description, t.notes,
+        t.date, t.has_time, t.status, t.is_installment, t.installment_number,
+        t.total_installments, t.installment_group_id, t.created_at, t.updated_at,
+        c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
+        a.name AS account_name, a.type AS account_type, a.icon AS account_icon, a.color AS account_color
+      FROM transactions t
+      JOIN categories c ON c.id = t.category_id
+      JOIN accounts a ON a.id = t.account_id
+      WHERE t.user_id = $1
+        AND t.installment_group_id = $2
+        AND t.status != '${RecordStatus.DELETED}'
+      ORDER BY t.installment_number ASC, t.date ASC
+    `;
+
+    const result = await dbPool.query(query, [userId, groupId]);
+    if (result.rows.length === 0) {
+      throw new NotFoundError('Parcelamento não encontrado.');
+    }
 
     return result.rows.map((row) =>
       this.mapTransactionRow(row, {
@@ -285,6 +329,11 @@ export class TransactionsService {
       fields.push(`description = $${idx++}`);
       values.push(data.description);
     }
+    if (data.notes !== undefined) {
+      const cleanNotes = data.notes && data.notes.trim().length > 0 ? data.notes.trim() : null;
+      fields.push(`notes = $${idx++}`);
+      values.push(cleanNotes);
+    }
     if (data.amount !== undefined) {
       fields.push(`amount = $${idx++}`);
       values.push(data.amount);
@@ -320,7 +369,7 @@ export class TransactionsService {
       UPDATE transactions
       SET ${fields.join(', ')}
       WHERE id = $${idx++} AND user_id = $${idx}
-      RETURNING id, user_id, category_id, account_id, type, amount, description,
+      RETURNING id, user_id, category_id, account_id, type, amount, description, notes,
                 date, has_time, status, is_installment, installment_number,
                 total_installments, installment_group_id, created_at, updated_at
     `;
@@ -385,7 +434,7 @@ export class TransactionsService {
       `UPDATE transactions
        SET status = $1, updated_at = $2
        WHERE id = $3 AND user_id = $4
-       RETURNING id, user_id, category_id, account_id, type, amount, description,
+       RETURNING id, user_id, category_id, account_id, type, amount, description, notes,
                  date, has_time, status, is_installment, installment_number,
                  total_installments, installment_group_id, created_at, updated_at`,
       [newStatus, Date.now(), transactionId, userId]
@@ -438,6 +487,7 @@ export class TransactionsService {
       type: row.type,
       amount: parseFloat(row.amount),
       description: row.description,
+      notes: row.notes ?? null,
       date: Number(row.date),
       has_time: Boolean(row.has_time),
       status: row.status,

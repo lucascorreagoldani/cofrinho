@@ -10,6 +10,7 @@
 		01AB8D39219004C9F6F0785D /* CofrinhoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F81FC403314BD30C20D1BC /* CofrinhoApp.swift */; };
 		02A1439B653FD62B9EEC4E76 /* MonthYearPickerSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B43C9FADD37CE67121D91537 /* MonthYearPickerSheetView.swift */; };
 		048AD68AB822E0459F55A821 /* AccountModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEC3D8795E7FACF9E01282B5 /* AccountModel.swift */; };
+		0F29EDACBD7EEB42B84DCE0A /* TransactionDetailSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2871C5358231911CB3D845E5 /* TransactionDetailSheetView.swift */; };
 		11BA7D0331C8E5C1B65DEC6E /* CreateAccountSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79FC3B292662892FD1CCB755 /* CreateAccountSheetView.swift */; };
 		1342A408090AE6176F7F7D37 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66AC946C67C7549D296275F1 /* Color+Hex.swift */; };
 		1C3F10BF94E3B68712A45A32 /* AppErrorProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 811079180079BD47AD61FEF7 /* AppErrorProtocol.swift */; };
@@ -55,6 +56,7 @@
 		1FBB33C82721F179111B0F9D /* TransactionsFilterSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionsFilterSheetView.swift; sourceTree = "<group>"; };
 		1FC786F196E75FF5FB29EC76 /* AccountsAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsAPIService.swift; sourceTree = "<group>"; };
 		232A7744246B43CF19F01D9D /* TransactionsAPIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionsAPIService.swift; sourceTree = "<group>"; };
+		2871C5358231911CB3D845E5 /* TransactionDetailSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionDetailSheetView.swift; sourceTree = "<group>"; };
 		28F64ACD9DC3CA218A33982D /* LocalDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDataManager.swift; sourceTree = "<group>"; };
 		3350B94409268186B89BBE87 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		423194BBE6698E54893E3638 /* NetworkError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkError.swift; sourceTree = "<group>"; };
@@ -76,7 +78,7 @@
 		81AFB91C84373D4EC4DC4942 /* DomainEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainEnums.swift; sourceTree = "<group>"; };
 		86A95467C779F02131288CB5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		9185A2C53EE8B6FCAFE9FDA5 /* TransactionsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionsListView.swift; sourceTree = "<group>"; };
-		92CCA8981E0D4050DBD21296 /* Cofrinho.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cofrinho.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		92CCA8981E0D4050DBD21296 /* Cofrinho.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cofrinho.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9FFDE8C24849D7E44F2A27CD /* LocalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModels.swift; sourceTree = "<group>"; };
 		B43C9FADD37CE67121D91537 /* MonthYearPickerSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthYearPickerSheetView.swift; sourceTree = "<group>"; };
 		B4B137D478046A743562212D /* NewExpenseViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewExpenseViewModel.swift; sourceTree = "<group>"; };
@@ -228,6 +230,7 @@
 				B43C9FADD37CE67121D91537 /* MonthYearPickerSheetView.swift */,
 				72FAD0764A3DA8E5C2F86F7F /* NewExpenseView.swift */,
 				B4B137D478046A743562212D /* NewExpenseViewModel.swift */,
+				2871C5358231911CB3D845E5 /* TransactionDetailSheetView.swift */,
 				1FBB33C82721F179111B0F9D /* TransactionsFilterSheetView.swift */,
 				9185A2C53EE8B6FCAFE9FDA5 /* TransactionsListView.swift */,
 			);
@@ -302,6 +305,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					DC3FF1B64A52E75B95454603 = {
+						DevelopmentTeam = J747JQ5H3S;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -374,6 +378,7 @@
 				94BD96C7EADA7D04E4263A43 /* NewExpenseViewModel.swift in Sources */,
 				6706CE7D40EF27C354D6C82E /* ProfileView.swift in Sources */,
 				B0DA2D3DDBA010ADFFF979D3 /* SecurityError.swift in Sources */,
+				0F29EDACBD7EEB42B84DCE0A /* TransactionDetailSheetView.swift in Sources */,
 				7D0D8AE914BE1CF2F5526FF3 /* TransactionModel.swift in Sources */,
 				C278974BBDB3333F36192EC8 /* TransactionsAPIService.swift in Sources */,
 				F117E555C74983474D0F9AA0 /* TransactionsFilterSheetView.swift in Sources */,

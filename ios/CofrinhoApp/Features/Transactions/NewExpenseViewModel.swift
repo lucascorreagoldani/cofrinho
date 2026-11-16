@@ -10,6 +10,7 @@ public final class NewExpenseViewModel {
             filterSuggestions()
         }
     }
+    public var notesText: String = ""
     public var rawAmount: Double = 0.0
     public var amountInputString: String = ""
     public var selectedDate: Date = Date()
@@ -212,11 +213,14 @@ public final class NewExpenseViewModel {
         defer { isSaving = false }
 
         let dateEpochMs = Int(selectedDate.timeIntervalSince1970 * 1000)
+        let trimmedNotes = notesText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let optionalNotes: String? = trimmedNotes.isEmpty ? nil : trimmedNotes
 
         do {
             let created = try await transactionsAPI.createTransaction(
                 token: token,
                 description: trimmedDesc,
+                notes: optionalNotes,
                 amount: rawAmount,
                 date: dateEpochMs,
                 hasTime: hasTime,
@@ -242,6 +246,7 @@ public final class NewExpenseViewModel {
             LocalDataManager.shared.saveOfflineTransaction(
                 userId: category.userId,
                 description: trimmedDesc,
+                notes: optionalNotes,
                 amount: rawAmount,
                 date: dateEpochMs,
                 hasTime: hasTime,
@@ -279,6 +284,7 @@ public final class NewExpenseViewModel {
 
     private func resetForm() {
         descriptionText = ""
+        notesText = ""
         rawAmount = 0.0
         amountInputString = ""
         selectedDate = Date()

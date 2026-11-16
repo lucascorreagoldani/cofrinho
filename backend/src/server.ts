@@ -25,6 +25,7 @@ import { usersRoutes } from './modules/users/users.routes.js';
 import { categoriesRoutes } from './modules/categories/categories.routes.js';
 import { accountsRoutes } from './modules/accounts/accounts.routes.js';
 import { transactionsRoutes } from './modules/transactions/transactions.routes.js';
+import { publicRoutes } from './modules/public/public.routes.js';
 import { checkDatabaseConnection, dbPool } from './database/postgres.js';
 import { checkRedisConnection, redis } from './database/redis.js';
 import { initializeDatabase } from './database/init.js';
@@ -160,6 +161,10 @@ export async function buildApp() {
   });
 
   /* 7. Registro de Rotas Versionadas (/v1 - Regra 5) */
+  /* 7.1 API Pública (Utilitários sem exigência de JWT) */
+  await app.register(publicRoutes, { prefix: '/v1/public' });
+
+  /* 7.2 API Privada (Protegida por JWT e Sessão Redis/PostgreSQL) */
   await app.register(authRoutes, { prefix: '/v1/auth' });
   await app.register(usersRoutes, { prefix: '/v1/users' });
   await app.register(categoriesRoutes, { prefix: '/v1/categories' });

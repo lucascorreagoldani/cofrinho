@@ -125,5 +125,24 @@ describe('Testes de Contrato da API REST (RFC 9457 e Zod)', async () => {
     assert.strictEqual(body.code, 'UNAUTHORIZED');
     assert.ok(body.incidentId);
   });
+
+  test('Rotas públicas (/v1/public/time e /v1/public/enums) devem responder 200 sem JWT', async () => {
+    const timeRes = await app.inject({
+      method: 'GET',
+      url: '/v1/public/time',
+    });
+    assert.strictEqual(timeRes.statusCode, 200);
+    const timeBody = JSON.parse(timeRes.body);
+    assert.strictEqual(typeof timeBody.timestamp, 'number');
+
+    const enumsRes = await app.inject({
+      method: 'GET',
+      url: '/v1/public/enums',
+    });
+    assert.strictEqual(enumsRes.statusCode, 200);
+    const enumsBody = JSON.parse(enumsRes.body);
+    assert.ok(Array.isArray(enumsBody.enums.account_type));
+    assert.ok(Array.isArray(enumsBody.defaults.categories));
+  });
 });
 

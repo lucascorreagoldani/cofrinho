@@ -49,6 +49,7 @@ public final class LocalDataManager {
                 }
                 existing.amount = NSDecimalNumber(decimal: tx.amount).doubleValue
                 existing.transactionDescription = tx.description
+                existing.notes = tx.notes
                 existing.date = tx.date
                 existing.hasTime = tx.hasTime
                 existing.status = tx.status
@@ -76,6 +77,7 @@ public final class LocalDataManager {
                     type: tx.type,
                     amount: NSDecimalNumber(decimal: tx.amount).doubleValue,
                     transactionDescription: tx.description,
+                    notes: tx.notes,
                     date: tx.date,
                     hasTime: tx.hasTime,
                     status: tx.status,
@@ -159,6 +161,7 @@ public final class LocalDataManager {
     public func saveOfflineTransaction(
         userId: Int,
         description: String,
+        notes: String? = nil,
         amount: Double,
         date: Int,
         hasTime: Bool,
@@ -174,6 +177,7 @@ public final class LocalDataManager {
             type: TransactionType.expense.rawValue,
             amount: amount,
             transactionDescription: description,
+            notes: notes,
             date: date,
             hasTime: hasTime,
             status: RecordStatus.active.rawValue,
@@ -234,6 +238,35 @@ public final class LocalDataManager {
         AppLogger.shared.info("Visibilidade alterada offline para \(newStatus.rawValue) (id: \(id)).", category: .database)
     }
 
+    /// Atualiza as observações de um lançamento localmente no SwiftData e agenda sincronização.
+    public func markOfflineUpdateNotes(id: Int, notes: String?) {
+        guard let item = findLocalTransaction(byDisplayId: id) else { return }
+        let trimmed = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+        item.notes = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        item.updatedAt = Int(Date().timeIntervalSince1970 * 1000)
+
+        if item.syncStatus == SyncStatus.synced.rawValue {
+            item.syncStatus = SyncStatus.pendingUpdate.rawValue
+        }
+
+        try? context.save()
+        AppLogger.shared.info("Observações atualizadas offline para transação (id: \(id)).", category: .database)
+    }
+
+    /// Busca todas as parcelas armazenadas no SwiftData para um mesmo installment_group_id.
+    public func fetchCachedInstallmentGroup(groupId: String) -> [TransactionModel] {
+        let deletedRaw = RecordStatus.deleted.rawValue
+        let descriptor = FetchDescriptor<LocalTransaction>(
+            predicate: #Predicate { $0.installmentGroupId == groupId && $0.status != deletedRaw },
+            sortBy: [
+                SortDescriptor(\.installmentNumber, order: .forward),
+                SortDescriptor(\.date, order: .forward)
+            ]
+        )
+        let entities = (try? context.fetch(descriptor)) ?? []
+        return entities.map { $0.toModel() }
+    }
+
     /// Remove ou marca como deletado no cache local após confirmação de exclusão bem-sucedida na VPS.
     public func removeSyncedTransaction(id: Int, cascade: DeleteCascadeMode = .single) {
         guard let target = findLocalTransaction(byDisplayId: id) else { return }
@@ -277,6 +310,7 @@ public final class LocalDataManager {
                     let created = try await TransactionsAPIService.shared.createTransaction(
                         token: token,
                         description: item.transactionDescription,
+                        notes: item.notes,
                         amount: item.amount,
                         date: item.date,
                         hasTime: item.hasTime,
@@ -306,6 +340,8 @@ public final class LocalDataManager {
                         let updated = try await TransactionsAPIService.shared.updateTransaction(
                             token: token,
                             id: serverId,
+                            description: item.transactionDescription,
+                            notes: item.notes ?? "",
                             status: item.status
                         )
                         item.syncStatus = SyncStatus.synced.rawValue

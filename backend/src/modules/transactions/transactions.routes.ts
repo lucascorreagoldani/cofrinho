@@ -68,6 +68,33 @@ export const transactionsRoutes: FastifyPluginAsyncZod = async (app) => {
     }
   );
 
+  /* 2.1. GET /v1/transactions/group/:groupId - Listar todas as parcelas de um grupo */
+  app.get(
+    '/group/:groupId',
+    {
+      schema: {
+        tags: ['Gastos'],
+        summary: 'Listar todas as parcelas de um mesmo grupo de parcelamento',
+        params: z.object({
+          groupId: z.string().uuid(),
+        }),
+        response: {
+          200: z.array(transactionResponseSchema),
+          401: problemDetailsSchema,
+          404: problemDetailsSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const userId = getAuthenticatedUserId(request);
+      const installments = await transactionsService.listInstallmentGroup(
+        userId,
+        request.params.groupId
+      );
+      return reply.status(200).send(installments);
+    }
+  );
+
   /* 3. POST /v1/transactions - Cadastrar novo gasto (à vista ou parcelado) */
   app.post(
     '',

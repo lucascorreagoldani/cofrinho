@@ -62,6 +62,7 @@ public final class TransactionsAPIService: Sendable {
     public func createTransaction(
         token: String,
         description: String,
+        notes: String? = nil,
         amount: Double,
         date: Int,
         hasTime: Bool = false,
@@ -80,6 +81,13 @@ public final class TransactionsAPIService: Sendable {
             "account_id": accountId,
             "type": type
         ]
+
+        if let notes {
+            let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                payload["notes"] = trimmed
+            }
+        }
 
         if installmentsEnabled && installmentsCount > 1 {
             payload["installments"] = [
@@ -103,6 +111,7 @@ public final class TransactionsAPIService: Sendable {
         token: String,
         id: Int,
         description: String? = nil,
+        notes: String? = nil,
         amount: Double? = nil,
         date: Int? = nil,
         hasTime: Bool? = nil,
@@ -112,6 +121,7 @@ public final class TransactionsAPIService: Sendable {
     ) async throws -> TransactionModel {
         var payload: [String: Any] = [:]
         if let description { payload["description"] = description }
+        if let notes { payload["notes"] = notes }
         if let amount { payload["amount"] = amount }
         if let date { payload["date"] = date }
         if let hasTime { payload["has_time"] = hasTime }
@@ -124,6 +134,16 @@ public final class TransactionsAPIService: Sendable {
             method: .put,
             token: token,
             jsonBody: payload
+        )
+        return try await client.request(endpoint)
+    }
+
+    /// Lista todas as parcelas associadas a um mesmo installment_group_id
+    public func getInstallmentGroup(token: String, groupId: String) async throws -> [TransactionModel] {
+        let endpoint = try Endpoint(
+            path: "/v1/transactions/group/\(groupId)",
+            method: .get,
+            token: token
         )
         return try await client.request(endpoint)
     }

@@ -308,6 +308,11 @@ export class AuthService {
       [newExpiresAt, sessionId]
     );
 
+    await dbPool.query(
+      `UPDATE users SET last_login = $1, updated_at = $1 WHERE id = $2`,
+      [now, Number(row.user_id)]
+    );
+
     try {
       const sessionPayload = JSON.stringify({
         userId: Number(row.user_id),

@@ -1,0 +1,150 @@
+import { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import { z } from 'zod';
+import { env } from '../../config/env.js';
+import { checkDatabaseConnection } from '../../database/postgres.js';
+import { checkRedisConnection } from '../../database/redis.js';
+import {
+  RecordStatus,
+  TransactionFilterStatus,
+  TransactionType,
+  AccountType,
+  DeleteCascadeMode,
+  SessionStatus,
+  ErrorLogStatus,
+} from '../../shared/constants/enums.js';
+import {
+  CANONICAL_CATEGORIES,
+  CANONICAL_ACCOUNTS,
+} from '../../shared/constants/defaults.js';
+
+/**
+ * Rotas da API Pública de Utilitários (/v1/public).
+ * Não requerem JWT nem sessão ativa, servindo telemetria de status,
+ * sincronização de relógio e catálogo canônico de domínios para clientes.
+ */
+export const publicRoutes: FastifyPluginAsyncZod = async (app) => {
+  /* 1. GET /v1/public/status - Status público do sistema e serviços */
+  app.get(
+    '/status',
+    {
+      schema: {
+        tags: ['Público'],
+        summary: 'Obter status público da API, versão e saúde dos serviços',
+        response: {
+          200: z.object({
+            status: z.enum(['online', 'degraded']),
+            version: z.string(),
+            environment: z.string(),
+            server_time_ms: z.number().int(),
+            services: z.object({
+              postgres: z.enum(['healthy', 'unreachable']),
+              redis: z.enum(['healthy', 'unreachable']),
+            }),
+          }),
+        },
+      },
+    },
+    async () => {
+      const [dbOk, redisOk] = await Promise.all([
+        checkDatabaseConnection(),
+        checkRedisConnection(),
+      ]);
+
+      return {
+        status: dbOk && redisOk ? ('online' as const) : ('degraded' as const),
+        version: '1.0.0',
+        environment: env.NODE_ENV,
+        server_time_ms: Date.now(),
+        services: {
+          postgres: dbOk ? ('healthy' as const) : ('unreachable' as const),
+          redis: redisOk ? ('healthy' as const) : ('unreachable' as const),
+        },
+      };
+    }
+  );
+
+  /* 2. GET /v1/public/enums - Enums canônicos e catálogos padrão */
+  app.get(
+    '/enums',
+    {
+      schema: {
+        tags: ['Público'],
+        summary: 'Obter enums canônicos de domínio e valores padrão de inicialização',
+        response: {
+          200: z.object({
+            enums: z.object({
+              record_status: z.array(z.string()),
+              transaction_filter_status: z.array(z.string()),
+              transaction_type: z.array(z.string()),
+              account_type: z.array(z.string()),
+              delete_cascade_mode: z.array(z.string()),
+              session_status: z.array(z.string()),
+              error_log_status: z.array(z.string()),
+            }),
+            defaults: z.object({
+              categories: z.array(
+                z.object({
+                  name: z.string(),
+                  icon: z.string(),
+                  color: z.string(),
+                })
+              ),
+              accounts: z.array(
+                z.object({
+                  name: z.string(),
+                  type: z.string(),
+                  icon: z.string(),
+                  color: z.string(),
+                  allows_installments: z.boolean(),
+                  closing_day: z.number().int().optional(),
+                  due_day: z.number().int().optional(),
+                })
+              ),
+            }),
+          }),
+        },
+      },
+    },
+    async () => {
+      return {
+        enums: {
+          record_status: Object.values(RecordStatus),
+          transaction_filter_status: Object.values(TransactionFilterStatus),
+          transaction_type: Object.values(TransactionType),
+          account_type: Object.values(AccountType),
+          delete_cascade_mode: Object.values(DeleteCascadeMode),
+          session_status: Object.values(SessionStatus),
+          error_log_status: Object.values(ErrorLogStatus),
+        },
+        defaults: {
+          categories: [...CANONICAL_CATEGORIES],
+          accounts: CANONICAL_ACCOUNTS.map((acc) => ({
+            ...acc,
+            type: acc.type as string,
+          })),
+        },
+      };
+    }
+  );
+
+  /* 3. GET /v1/public/time - Utilitário leve para sincronização de timestamp */
+  app.get(
+    '/time',
+    {
+      schema: {
+        tags: ['Público'],
+        summary: 'Obter timestamp oficial do servidor em epoch milissegundos',
+        response: {
+          200: z.object({
+            timestamp: z.number().int(),
+          }),
+        },
+      },
+    },
+    async () => {
+      return {
+        timestamp: Date.now(),
+      };
+    }
+  );
+};

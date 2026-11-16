@@ -1,9 +1,15 @@
 import SwiftUI
 
 /// Tela de Extrato Completo de Gastos e Transações do Usuário no Cofrinho.
-/// Suporta filtros avançados via Enums, projeção de parcelas futuras, salto direto para qualquer mês/ano,
-/// botão de retorno rápido para a data atual, gestos de deslize lateral e suporte offline completo (create/update/delete).
+/// Suporta navegação inteligente por dias com lançamentos via deslize lateral fluido,
+/// filtros avançados via Enums, projeção de parcelas futuras, detalhes expansíveis por lançamento,
+/// salto direto para qualquer mês/ano e sincronização offline com SwiftData.
 public struct TransactionsListView: View {
+    private enum DayJumpTarget: Sendable {
+        case firstAvailable
+        case lastAvailable
+    }
+
     let token: String
 
     @State private var transactions: [TransactionModel] = []
@@ -18,14 +24,17 @@ public struct TransactionsListView: View {
     // Filtros e Navegação Temporal
     @State private var selectedMonth: Int = Calendar.current.component(.month, from: Date())
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
+    @State private var selectedDay: Int? = nil
+    @State private var pendingDayJumpAfterMonthLoad: DayJumpTarget? = nil
     @State private var selectedAccountId: Int? = nil
     @State private var selectedCategoryId: Int? = nil
     @State private var filterStatus: TransactionFilterStatus = .active
 
-    // Estados de Sheets
+    // Estados de Sheets e Detalhes
     @State private var showNewExpenseSheet: Bool = false
     @State private var showFilterSheet: Bool = false
     @State private var showMonthYearPicker: Bool = false
+    @State private var selectedTransactionForDetail: TransactionModel? = nil
 
     // Dados Auxiliares para Filtros
     @State private var availableAccounts: [AccountModel] = []
@@ -55,17 +64,37 @@ public struct TransactionsListView: View {
         return selectedMonth == curMonth && selectedYear == curYear
     }
 
+    private var availableTransactionDays: [Int] {
+        let calendar = Calendar.current
+        let days = transactions.map { calendar.component(.day, from: $0.dateValue) }
+        return Array(Set(days)).sorted()
+    }
+
+    private var displayedTransactions: [TransactionModel] {
+        guard let selectedDay else { return transactions }
+        let calendar = Calendar.current
+        return transactions.filter { calendar.component(.day, from: $0.dateValue) == selectedDay }
+    }
+
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // MARK: - Barra de Seleção de Mês/Ano (Salto Direto & Botão Hoje)
-                monthSelectorHeader
+                // Bloco superior unificado com gesto fluido horizontal para troca rápida de dia/mês
+                VStack(spacing: 0) {
+                    // MARK: - Barra de Seleção de Mês/Ano (Sem botão Hoje duplicado)
+                    monthSelectorHeader
 
-                // MARK: - Barra de Filtros Ativos (Chips)
-                activeFiltersBar
+                    // MARK: - Barra Interativa de Salto Inteligente por Dias com Lançamentos
+                    dayNavigationBar
 
-                // MARK: - Card de Resumo Mensal com Projeção de Parcelas
-                monthlySummaryCard
+                    // MARK: - Barra de Filtros Ativos (Chips)
+                    activeFiltersBar
+
+                    // MARK: - Card de Resumo (Dia ou Mês) com Projeção de Parcelas
+                    monthlySummaryCard
+                }
+                .contentShape(Rectangle())
+                .simultaneousGesture(horizontalDaySwipeGesture)
 
                 // MARK: - Lista de Gastos
                 if isLoading && transactions.isEmpty {
@@ -78,38 +107,47 @@ public struct TransactionsListView: View {
                             .foregroundStyle(.secondary)
                         Spacer()
                     }
-                } else if transactions.isEmpty {
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .simultaneousGesture(horizontalDaySwipeGesture)
+                } else if displayedTransactions.isEmpty {
                     emptyStateView
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .contentShape(Rectangle())
-                        .gesture(horizontalMonthSwipeGesture)
+                        .simultaneousGesture(horizontalDaySwipeGesture)
                 } else {
                     List {
-                        ForEach(transactions) { tx in
-                            transactionRow(tx)
-                                .onAppear {
-                                    loadMoreIfNeeded(currentItem: tx)
+                        ForEach(displayedTransactions) { tx in
+                            Button {
+                                selectedTransactionForDetail = tx
+                            } label: {
+                                transactionRow(tx)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .onAppear {
+                                loadMoreIfNeeded(currentItem: tx)
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                // Ação Primária: Excluir com Full Swipe
+                                Button(role: .destructive) {
+                                    prepareDelete(tx)
+                                } label: {
+                                    Label("Excluir", systemImage: "trash.fill")
                                 }
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    // Ação Primária: Excluir com Full Swipe
-                                    Button(role: .destructive) {
-                                        prepareDelete(tx)
-                                    } label: {
-                                        Label("Excluir", systemImage: "trash.fill")
-                                    }
 
-                                    // Ação Secundária: Ocultar / Desocultar
-                                    Button {
-                                        prepareToggleVisibility(tx)
-                                    } label: {
-                                        let isHidden = tx.statusEnum == .hidden
-                                        Label(
-                                            isHidden ? "Desocultar" : "Ocultar",
-                                            systemImage: isHidden ? "eye.fill" : "eye.slash.fill"
-                                        )
-                                    }
-                                    .tint(tx.statusEnum == .hidden ? Color.blue : Color.secondary)
+                                // Ação Secundária: Ocultar / Desocultar
+                                Button {
+                                    prepareToggleVisibility(tx)
+                                } label: {
+                                    let isHidden = tx.statusEnum == .hidden
+                                    Label(
+                                        isHidden ? "Desocultar" : "Ocultar",
+                                        systemImage: isHidden ? "eye.fill" : "eye.slash.fill"
+                                    )
                                 }
+                                .tint(tx.statusEnum == .hidden ? Color.blue : Color.secondary)
+                            }
                         }
 
                         if isLoadingMore {
@@ -123,17 +161,29 @@ public struct TransactionsListView: View {
                             .listRowBackground(Color.clear)
                         }
 
-                        // Área de respiro inferior para permitir arrastar o mês mesmo no fim da lista
+                        // Área ampla de respiro inferior para deslize horizontal fluido sem tocar em células
                         Section {
-                            Color.clear
-                                .frame(height: 70)
-                                .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
-                                .contentShape(Rectangle())
-                                .gesture(horizontalMonthSwipeGesture)
+                            VStack(spacing: 6) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.left.and.right")
+                                        .font(.caption2)
+                                    Text("Deslize para navegar entre dias com lançamentos")
+                                        .font(.caption2)
+                                }
+                                .foregroundStyle(.tertiary)
+                                .padding(.top, 12)
+
+                                Spacer(minLength: 260)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 300)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .contentShape(Rectangle())
+                            .gesture(horizontalDaySwipeGesture)
                         }
                     }
                     .listStyle(.insetGrouped)
+                    .simultaneousGesture(rightwardBackDaySwipeGesture)
                     .refreshable {
                         await loadTransactions(reset: true)
                     }
@@ -158,7 +208,7 @@ public struct TransactionsListView: View {
                     }
                 }
 
-                if !isCurrentMonthAndYear {
+                if !isCurrentMonthAndYear || selectedDay != nil {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
                             goToToday()
@@ -199,6 +249,18 @@ public struct TransactionsListView: View {
                         }
                 }
             }
+            // MARK: - Sheet de Detalhes do Lançamento e Parcelamento
+            .sheet(item: $selectedTransactionForDetail) { tx in
+                TransactionDetailSheetView(
+                    transaction: tx,
+                    token: token,
+                    onUpdated: {
+                        Task {
+                            await loadTransactions(reset: true)
+                        }
+                    }
+                )
+            }
             // MARK: - Sheet de Filtros Avançados
             .sheet(isPresented: $showFilterSheet) {
                 TransactionsFilterSheetView(
@@ -210,6 +272,8 @@ public struct TransactionsListView: View {
                     accounts: availableAccounts,
                     categories: availableCategories,
                     onApply: {
+                        selectedDay = nil
+                        pendingDayJumpAfterMonthLoad = nil
                         Task {
                             await loadTransactions(reset: true)
                         }
@@ -222,6 +286,8 @@ public struct TransactionsListView: View {
                     selectedMonth: $selectedMonth,
                     selectedYear: $selectedYear,
                     onApply: {
+                        selectedDay = nil
+                        pendingDayJumpAfterMonthLoad = nil
                         Task {
                             await loadTransactions(reset: true)
                         }
@@ -301,7 +367,7 @@ public struct TransactionsListView: View {
 
             Spacer()
 
-            // Botão com Calendário que permite Salto Direto de Mês/Ano
+            // Botão com Calendário que permite Salto Direto de Mês/Ano (botão Hoje fica apenas na topBarTrailing)
             Button {
                 showMonthYearPicker = true
             } label: {
@@ -325,27 +391,6 @@ public struct TransactionsListView: View {
                 .shadow(color: Color.black.opacity(0.04), radius: 4, y: 1)
             }
 
-            // Botão rápido para retornar ao Dia Atual
-            if !isCurrentMonthAndYear {
-                Button {
-                    goToToday()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.caption2.bold())
-                        Text("Hoje")
-                            .font(.caption.bold())
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.blue)
-                    .clipShape(.rect(cornerRadius: 14))
-                    .shadow(color: Color.blue.opacity(0.25), radius: 3, y: 1)
-                }
-                .transition(.scale.combined(with: .opacity))
-            }
-
             Spacer()
 
             Button {
@@ -359,8 +404,83 @@ public struct TransactionsListView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color(.secondarySystemBackground))
-        .contentShape(Rectangle())
-        .gesture(horizontalMonthSwipeGesture)
+    }
+
+    private var dayNavigationBar: some View {
+        HStack(spacing: 6) {
+            Button {
+                navigateDaySmart(direction: -1)
+            } label: {
+                Image(systemName: "chevron.left.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Color.blue.opacity(0.85))
+            }
+            .buttonStyle(.plain)
+
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        Button {
+                            let haptic = UIImpactFeedbackGenerator(style: .light)
+                            haptic.impactOccurred()
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                selectedDay = nil
+                            }
+                        } label: {
+                            Text("Mês Inteiro")
+                                .font(.caption.bold())
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(selectedDay == nil ? Color.blue : Color(.systemBackground))
+                                .foregroundStyle(selectedDay == nil ? Color.white : Color.primary)
+                                .clipShape(.rect(cornerRadius: 16))
+                                .shadow(color: Color.black.opacity(0.04), radius: 2, y: 1)
+                        }
+                        .id(-1)
+                        .buttonStyle(.plain)
+
+                        ForEach(availableTransactionDays, id: \.self) { day in
+                            Button {
+                                let haptic = UIImpactFeedbackGenerator(style: .light)
+                                haptic.impactOccurred()
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    selectedDay = (selectedDay == day) ? nil : day
+                                }
+                            } label: {
+                                Text("Dia \(String(format: "%02d", day))")
+                                    .font(.caption.bold().monospacedDigit())
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(selectedDay == day ? Color.blue : Color(.systemBackground))
+                                    .foregroundStyle(selectedDay == day ? Color.white : Color.primary)
+                                    .clipShape(.rect(cornerRadius: 16))
+                                    .shadow(color: Color.black.opacity(0.04), radius: 2, y: 1)
+                            }
+                            .id(day)
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+                .onChange(of: selectedDay) { _, newDay in
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        proxy.scrollTo(newDay ?? -1, anchor: .center)
+                    }
+                }
+            }
+
+            Button {
+                navigateDaySmart(direction: 1)
+            } label: {
+                Image(systemName: "chevron.right.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Color.blue.opacity(0.85))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .background(Color(.tertiarySystemBackground))
     }
 
     @ViewBuilder
@@ -414,8 +534,6 @@ public struct TransactionsListView: View {
             }
             .scrollIndicators(.hidden)
             .background(Color(.tertiarySystemBackground))
-            .contentShape(Rectangle())
-            .gesture(horizontalMonthSwipeGesture)
         }
     }
 
@@ -442,16 +560,27 @@ public struct TransactionsListView: View {
     }
 
     private var monthlySummaryCard: some View {
-        let regularExpenses = transactions.filter { !$0.isInstallment }
-        let installmentExpenses = transactions.filter { $0.isInstallment }
+        let targetItems = displayedTransactions
+        let regularExpenses = targetItems.filter { !$0.isInstallment }
+        let installmentExpenses = targetItems.filter { $0.isInstallment }
         let regularTotal = regularExpenses.reduce(Decimal(0)) { $0 + $1.amount }
         let installmentTotal = installmentExpenses.reduce(Decimal(0)) { $0 + $1.amount }
         let total = regularTotal + installmentTotal
 
+        let summaryLabel: String = {
+            if let day = selectedDay {
+                return String(format: "Total no Dia %02d/%02d", day, selectedMonth)
+            }
+            if installmentTotal > 0 && regularTotal == 0 {
+                return "Comprometido no Mês (Parcelas)"
+            }
+            return "Total Gasto no Mês"
+        }()
+
         return VStack(spacing: 8) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(installmentTotal > 0 && regularTotal == 0 ? "Comprometido no Mês (Parcelas)" : "Total Gasto no Mês")
+                    Text(summaryLabel)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
                     Text(total.brlCurrencyFormatted)
@@ -499,15 +628,14 @@ public struct TransactionsListView: View {
         .clipShape(.rect(cornerRadius: 16))
         .shadow(color: Color.black.opacity(0.04), radius: 8, y: 2)
         .padding(.horizontal, 16)
-        .padding(.top, 12)
+        .padding(.top, 10)
         .padding(.bottom, 6)
-        .contentShape(Rectangle())
-        .gesture(horizontalMonthSwipeGesture)
     }
 
     private func transactionRow(_ tx: TransactionModel) -> some View {
         let isHidden = tx.statusEnum == .hidden
         let categoryColor = Color(hex: tx.category?.color ?? "#FF9500")
+        let hasNotes = !(tx.notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
 
         return HStack(spacing: 12) {
             // Ícone da Categoria
@@ -527,6 +655,7 @@ public struct TransactionsListView: View {
                     Text(tx.description)
                         .font(.body.weight(.medium))
                         .foregroundStyle(isHidden ? .secondary : .primary)
+                        .lineLimit(1)
 
                     if let badge = tx.installmentBadge {
                         Text(badge)
@@ -536,6 +665,12 @@ public struct TransactionsListView: View {
                             .padding(.vertical, 2)
                             .background(Color.blue.opacity(0.12))
                             .clipShape(.rect(cornerRadius: 6))
+                    }
+
+                    if hasNotes {
+                        Image(systemName: "note.text")
+                            .font(.caption2)
+                            .foregroundStyle(Color.blue.opacity(0.8))
                     }
 
                     if isHidden {
@@ -565,16 +700,23 @@ public struct TransactionsListView: View {
                         Text(accName)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
                 }
             }
 
             Spacer()
 
-            // Valor
-            Text(tx.formattedAmount)
-                .font(.callout.bold())
-                .foregroundStyle(isHidden ? Color.secondary : Color.red)
+            // Valor + Indicador de expansão de detalhes
+            HStack(spacing: 6) {
+                Text(tx.formattedAmount)
+                    .font(.callout.bold())
+                    .foregroundStyle(isHidden ? Color.secondary : Color.red)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
         }
         .padding(.vertical, 4)
         .opacity(isHidden ? 0.75 : 1.0)
@@ -590,7 +732,7 @@ public struct TransactionsListView: View {
             Text(hasActiveFilters ? "Nenhum gasto com os filtros atuais" : "Nenhum gasto neste mês")
                 .font(.headline)
 
-            Text(hasActiveFilters ? "Tente redefinir os filtros ou deslize para os lados para navegar entre os meses." : "Toque no botão abaixo para adicionar seu primeiro gasto ou deslize para os lados para navegar.")
+            Text(hasActiveFilters ? "Tente redefinir os filtros ou deslize para os lados para navegar entre os dias e meses." : "Toque no botão abaixo para adicionar seu primeiro gasto ou deslize para os lados para navegar.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -601,6 +743,7 @@ public struct TransactionsListView: View {
                     selectedAccountId = nil
                     selectedCategoryId = nil
                     filterStatus = .active
+                    selectedDay = nil
                     Task { await loadTransactions(reset: true) }
                 } label: {
                     Text("Limpar Filtros")
@@ -629,14 +772,53 @@ public struct TransactionsListView: View {
         }
     }
 
-    // MARK: - Lógicas de Ação
+    // MARK: - Lógicas de Ação e Navegação Inteligente por Datas
 
     private var monthYearTitle: String {
         let monthName = Month(rawValue: selectedMonth)?.localizedName() ?? ""
         return "\(monthName) \(selectedYear)"
     }
 
-    private func changeMonth(by delta: Int) {
+    /// Navegação inteligente por dia:
+    /// - direction > 0 (avançar): salta diretamente para o próximo dia do mês que possua lançamentos;
+    ///   caso não exista, avança para o mês seguinte selecionando o primeiro dia com lançamento.
+    /// - direction < 0 (voltar): salta diretamente para o dia anterior mais recente que possua lançamentos;
+    ///   caso não exista, volta para o mês anterior selecionando o último dia com lançamento.
+    private func navigateDaySmart(direction: Int) {
+        let haptic = UIImpactFeedbackGenerator(style: .light)
+        haptic.impactOccurred()
+
+        let sortedDays = availableTransactionDays
+        let currentCalendarDay = Calendar.current.component(.day, from: Date())
+
+        if direction > 0 {
+            let referenceDay = selectedDay ?? (isCurrentMonthAndYear ? currentCalendarDay : 0)
+            if let nextActiveDay = sortedDays.first(where: { $0 > referenceDay }) {
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    selectedDay = nextActiveDay
+                }
+            } else {
+                pendingDayJumpAfterMonthLoad = .firstAvailable
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    changeMonth(by: 1, resetSelectedDay: false)
+                }
+            }
+        } else {
+            let referenceDay = selectedDay ?? (isCurrentMonthAndYear ? currentCalendarDay : 32)
+            if let previousActiveDay = sortedDays.last(where: { $0 < referenceDay }) {
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    selectedDay = previousActiveDay
+                }
+            } else {
+                pendingDayJumpAfterMonthLoad = .lastAvailable
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    changeMonth(by: -1, resetSelectedDay: false)
+                }
+            }
+        }
+    }
+
+    private func changeMonth(by delta: Int, resetSelectedDay: Bool = true) {
         var month = selectedMonth + delta
         var year = selectedYear
         while month > 12 {
@@ -649,6 +831,10 @@ public struct TransactionsListView: View {
         }
         selectedMonth = month
         selectedYear = year
+        if resetSelectedDay {
+            selectedDay = nil
+            pendingDayJumpAfterMonthLoad = nil
+        }
         Task {
             await loadTransactions(reset: true)
         }
@@ -658,7 +844,7 @@ public struct TransactionsListView: View {
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.impactOccurred()
         withAnimation(.easeInOut(duration: 0.25)) {
-            changeMonth(by: delta)
+            changeMonth(by: delta, resetSelectedDay: true)
         }
     }
 
@@ -667,7 +853,8 @@ public struct TransactionsListView: View {
         let curMonth = Calendar.current.component(.month, from: now)
         let curYear = Calendar.current.component(.year, from: now)
 
-        guard selectedMonth != curMonth || selectedYear != curYear else { return }
+        let monthChanged = (selectedMonth != curMonth || selectedYear != curYear)
+        guard monthChanged || selectedDay != nil else { return }
 
         let generator = UIImpactFeedbackGenerator(style: .medium)
         generator.impactOccurred()
@@ -675,30 +862,61 @@ public struct TransactionsListView: View {
         withAnimation(.easeInOut(duration: 0.25)) {
             selectedMonth = curMonth
             selectedYear = curYear
+            selectedDay = nil
+            pendingDayJumpAfterMonthLoad = nil
         }
 
-        Task {
-            await loadTransactions(reset: true)
+        if monthChanged {
+            Task {
+                await loadTransactions(reset: true)
+            }
         }
     }
 
-    private var horizontalMonthSwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 30, coordinateSpace: .local)
+    /// Gesto horizontal bidirecional altamente responsivo para navegação inteligente entre dias com lançamentos.
+    private var horizontalDaySwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 20, coordinateSpace: .local)
             .onEnded { value in
                 let horizontal = value.translation.width
                 let vertical = value.translation.height
-                // Garante que o movimento é horizontal intencional e não rolagem vertical acidental
-                guard abs(horizontal) > abs(vertical) * 1.3 && abs(horizontal) > 40 else {
+                guard abs(horizontal) > abs(vertical) * 1.15 && abs(horizontal) > 38 else {
                     return
                 }
                 if horizontal < 0 {
-                    // Deslizar para a esquerda avança para o próximo mês
-                    changeMonthWithAnimation(by: 1)
+                    navigateDaySmart(direction: 1)
                 } else {
-                    // Deslizar para a direita volta para o mês anterior
-                    changeMonthWithAnimation(by: -1)
+                    navigateDaySmart(direction: -1)
                 }
             }
+    }
+
+    /// Gesto simultâneo aplicado sobre a List especificamente para arrasto para a direita (voltar dia),
+    /// garantindo fluidez em 100% da tela sem entrar em conflito com swipeActions de exclusão à esquerda nas linhas.
+    private var rightwardBackDaySwipeGesture: some Gesture {
+        DragGesture(minimumDistance: 24, coordinateSpace: .local)
+            .onEnded { value in
+                let horizontal = value.translation.width
+                let vertical = value.translation.height
+                guard horizontal > 45 && abs(horizontal) > abs(vertical) * 1.25 else {
+                    return
+                }
+                navigateDaySmart(direction: -1)
+            }
+    }
+
+    private func applyDayJumpIfNeeded() {
+        let days = availableTransactionDays
+        if let jumpTarget = pendingDayJumpAfterMonthLoad {
+            switch jumpTarget {
+            case .firstAvailable:
+                selectedDay = days.first
+            case .lastAvailable:
+                selectedDay = days.last
+            }
+            pendingDayJumpAfterMonthLoad = nil
+        } else if let currentDay = selectedDay, !days.contains(currentDay) {
+            selectedDay = nil
+        }
     }
 
     private func loadAuxiliaryData() async {
@@ -781,6 +999,7 @@ public struct TransactionsListView: View {
 
             if reset {
                 transactions = fetched
+                applyDayJumpIfNeeded()
             } else {
                 transactions.append(contentsOf: fetched)
             }
@@ -792,6 +1011,9 @@ public struct TransactionsListView: View {
             // Se offline e temos dados em cache ou fallback offline, opera silenciosamente
             if isConnectionError(err) {
                 loadTransactionsFromLocalCache()
+                if reset {
+                    applyDayJumpIfNeeded()
+                }
                 AppLogger.shared.info("Falha de conexão com a VPS. Mantendo extrato visível via cache SwiftData.", category: .network)
             } else {
                 self.activeError = err
@@ -806,8 +1028,8 @@ public struct TransactionsListView: View {
     }
 
     private func loadMoreIfNeeded(currentItem: TransactionModel) {
-        guard let lastItem = transactions.last,
-              lastItem.id == currentItem.id,
+        guard let lastDisplayed = displayedTransactions.last,
+              (lastDisplayed.id == currentItem.id || transactions.last?.id == currentItem.id),
               transactions.count >= pageSize,
               canLoadMore,
               !isLoading,
@@ -885,6 +1107,7 @@ public struct TransactionsListView: View {
         if tx.id < 0 {
             LocalDataManager.shared.markOfflineDelete(id: tx.id, cascade: cascade)
             loadTransactionsFromLocalCache()
+            applyDayJumpIfNeeded()
             return
         }
 
@@ -900,6 +1123,7 @@ public struct TransactionsListView: View {
         } catch let err as any AppErrorProtocol where isConnectionError(err) {
             LocalDataManager.shared.markOfflineDelete(id: tx.id, cascade: cascade)
             loadTransactionsFromLocalCache()
+            applyDayJumpIfNeeded()
             AppLogger.shared.warning("Sem conexão: exclusão de \(tx.id) agendada na fila offline.", category: .database)
         } catch let err as any AppErrorProtocol {
             self.activeError = err
@@ -916,6 +1140,7 @@ public struct TransactionsListView: View {
         if tx.id < 0 {
             LocalDataManager.shared.markOfflineToggleVisibility(id: tx.id)
             loadTransactionsFromLocalCache()
+            applyDayJumpIfNeeded()
             return
         }
 
@@ -927,6 +1152,7 @@ public struct TransactionsListView: View {
         } catch let err as any AppErrorProtocol where isConnectionError(err) {
             LocalDataManager.shared.markOfflineToggleVisibility(id: tx.id)
             loadTransactionsFromLocalCache()
+            applyDayJumpIfNeeded()
             AppLogger.shared.warning("Sem conexão: alteração de visibilidade de \(tx.id) agendada na fila offline.", category: .database)
         } catch let err as any AppErrorProtocol {
             self.activeError = err

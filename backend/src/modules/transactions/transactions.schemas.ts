@@ -37,6 +37,7 @@ export const transactionResponseSchema = z.object({
   type: transactionTypeSchema,
   amount: z.number().positive().describe('Valor em reais (ex: 120.50)'),
   description: z.string(),
+  notes: z.string().nullable().optional(),
   date: z.number().int().describe('Timestamp numérico em epoch ms'),
   has_time: z.boolean(),
   status: transactionStatusSchema,
@@ -54,6 +55,12 @@ export const createTransactionBodySchema = z.object({
     .min(1, 'A descrição deve ter no mínimo 1 caractere')
     .max(255, 'A descrição deve ter no máximo 255 caracteres')
     .trim(),
+  notes: z
+    .string()
+    .max(1000, 'A observação deve ter no máximo 1000 caracteres')
+    .trim()
+    .nullable()
+    .optional(),
   amount: z.number({ required_error: 'Valor é obrigatório' }).positive('O valor deve ser maior que zero'),
   date: z.number({ required_error: 'Data é obrigatória' }).int().describe('Data em epoch milissegundos'),
   has_time: z.boolean().default(false),
@@ -70,6 +77,7 @@ export const createTransactionBodySchema = z.object({
 
 export const updateTransactionBodySchema = z.object({
   description: z.string().min(1).max(255).trim().optional(),
+  notes: z.string().max(1000, 'A observação deve ter no máximo 1000 caracteres').trim().nullable().optional(),
   amount: z.number().positive().optional(),
   date: z.number().int().optional(),
   has_time: z.boolean().optional(),

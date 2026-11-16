@@ -40,3 +40,4 @@ targets:
         MARKETING_VERSION: 1.0.0
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "Apple Development"
+        DEVELOPMENT_TEAM: J747JQ5H3S

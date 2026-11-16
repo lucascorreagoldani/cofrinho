@@ -120,6 +120,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     type VARCHAR(20) NOT NULL DEFAULT 'expense' CHECK (type IN ('expense', 'income')),
     amount NUMERIC(15, 2) NOT NULL CHECK (amount > 0),
     description VARCHAR(255) NOT NULL,
+    notes TEXT,
     date BIGINT NOT NULL,
     has_time BOOLEAN NOT NULL DEFAULT false,
     status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'hidden', 'deleted')),
@@ -137,3 +138,6 @@ CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id
 CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_group ON transactions(installment_group_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_description_search ON transactions(user_id, description);
+
+/* Migrações idempotentes para bancos existentes */
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS notes TEXT;
