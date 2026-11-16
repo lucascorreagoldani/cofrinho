@@ -2,6 +2,7 @@ import { dbPool } from '../../database/postgres.js';
 import { redis } from '../../database/redis.js';
 import { ConflictError, NotFoundError } from '../../shared/errors/AppError.js';
 import { CANONICAL_CATEGORIES } from '../../shared/constants/defaults.js';
+import { RecordStatus } from '../../shared/constants/enums.js';
 import { z } from 'zod';
 import {
   categoryResponseSchema,
@@ -33,7 +34,9 @@ export class CategoriesService {
     }
 
     /* 2. Consulta no PostgreSQL com índices otimizados */
-    const statuses = includeHidden ? ['active', 'hidden'] : ['active'];
+    const statuses = includeHidden
+      ? [RecordStatus.ACTIVE, RecordStatus.HIDDEN]
+      : [RecordStatus.ACTIVE];
     const result = await dbPool.query(
       `SELECT id, user_id, name, icon, color, is_default, status, created_at, updated_at
        FROM categories

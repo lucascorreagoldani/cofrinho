@@ -87,6 +87,16 @@ public final class LocalTransaction {
         self.accountColor = accountColor
     }
 
+    /// Identificador estável para SwiftUI mesmo antes da sincronização receber o serverId do PostgreSQL.
+    public var stableDisplayId: Int {
+        if let serverId { return serverId }
+        var hash: UInt64 = 5381
+        for byte in localId.utf8 {
+            hash = ((hash << 5) &+ hash) &+ UInt64(byte)
+        }
+        return -Int((hash % 1_000_000_000) + 1)
+    }
+
     /// Converte a entidade local para o DTO TransactionModel utilizado na camada de apresentação.
     public func toModel() -> TransactionModel {
         var catDTO: CategoryRelationDTO? = nil
@@ -104,14 +114,14 @@ public final class LocalTransaction {
             accDTO = AccountRelationDTO(
                 id: accountId,
                 name: accountName,
-                type: accountType ?? "credit_card",
-                icon: accountIcon ?? "creditcard.fill",
+                type: accountType ?? AccountType.creditCard.rawValue,
+                icon: accountIcon ?? AccountType.creditCard.defaultIcon,
                 color: accountColor ?? "#007AFF"
             )
         }
 
         return TransactionModel(
-            id: serverId ?? Int.random(in: 1_000_000...9_999_999),
+            id: stableDisplayId,
             userId: userId,
             categoryId: categoryId,
             category: catDTO,

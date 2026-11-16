@@ -84,5 +84,46 @@ describe('Testes de Contrato da API REST (RFC 9457 e Zod)', async () => {
     assert.ok(body.incidentId);
     assert.strictEqual(typeof body.timestamp, 'number');
   });
+
+  test('Rotas protegidas (/v1/categories, /v1/accounts, /v1/transactions) sem token devem retornar 401 RFC 9457 unificado', async () => {
+    const protectedRoutes = ['/v1/categories', '/v1/accounts', '/v1/transactions'];
+    const incidentIds = new Set<string>();
+
+    for (const url of protectedRoutes) {
+      const response = await app.inject({
+        method: 'GET',
+        url,
+      });
+
+      assert.strictEqual(response.statusCode, 401, `Rota ${url} deve retornar 401`);
+      assert.strictEqual(response.headers['content-type'], 'application/problem+json; charset=utf-8');
+
+      const body = JSON.parse(response.body);
+      assert.strictEqual(body.type, 'https://api.cofrinho.app/errors/unauthorized');
+      assert.strictEqual(body.status, 401);
+      assert.strictEqual(body.code, 'UNAUTHORIZED');
+      assert.ok(body.incidentId && body.incidentId !== 'incident_jwt_required', 'incidentId deve ser um UUID dinâmico');
+      assert.strictEqual(typeof body.timestamp, 'number');
+      incidentIds.add(body.incidentId);
+    }
+
+    assert.strictEqual(incidentIds.size, protectedRoutes.length, 'Cada falha 401 deve gerar um incidentId exclusivo');
+  });
+
+  test('Rota protegida com token JWT inválido deve retornar 401 no formato RFC 9457', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: '/v1/transactions',
+      headers: {
+        authorization: 'Bearer token.invalido.aqui',
+      },
+    });
+
+    assert.strictEqual(response.statusCode, 401);
+    assert.strictEqual(response.headers['content-type'], 'application/problem+json; charset=utf-8');
+    const body = JSON.parse(response.body);
+    assert.strictEqual(body.code, 'UNAUTHORIZED');
+    assert.ok(body.incidentId);
+  });
 });
 

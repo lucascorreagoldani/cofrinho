@@ -4,6 +4,11 @@ import { redis } from '../../database/redis.js';
 import { NotFoundError, ValidationError } from '../../shared/errors/AppError.js';
 import { z } from 'zod';
 import {
+  DeleteCascadeMode,
+  RecordStatus,
+  TransactionFilterStatus,
+} from '../../shared/constants/enums.js';
+import {
   createTransactionBodySchema,
   updateTransactionBodySchema,
   listTransactionsQuerySchema,
@@ -165,8 +170,8 @@ export class TransactionsService {
     const values: any[] = [userId];
     let idx = 2;
 
-    if (filters.status === 'all') {
-      conditions.push(`t.status != 'deleted'`);
+    if (filters.status === TransactionFilterStatus.ALL) {
+      conditions.push(`t.status != '${RecordStatus.DELETED}'`);
     } else {
       conditions.push(`t.status = $${idx++}`);
       values.push(filters.status);
@@ -326,7 +331,7 @@ export class TransactionsService {
     return this.mapTransactionRow(result.rows[0]);
   }
 
-  async deleteTransaction(userId: number, transactionId: number, cascade: 'single' | 'all_future' = 'single') {
+  async deleteTransaction(userId: number, transactionId: number, cascade: DeleteCascadeMode = DeleteCascadeMode.SINGLE) {
     const nowTimestamp = Date.now();
 
     const existing = await dbPool.query(
@@ -342,21 +347,21 @@ export class TransactionsService {
     const current = existing.rows[0];
 
     /* Exclusão em cascata para parcelas futuras do mesmo grupo */
-    if (cascade === 'all_future' && current.is_installment && current.installment_group_id) {
+    if (cascade === DeleteCascadeMode.ALL_FUTURE && current.is_installment && current.installment_group_id) {
       await dbPool.query(
         `UPDATE transactions
-         SET status = 'deleted', updated_at = $1
-         WHERE user_id = $2
-           AND installment_group_id = $3
-           AND installment_number >= $4`,
-        [nowTimestamp, userId, current.installment_group_id, current.installment_number]
+         SET status = $1, updated_at = $2
+         WHERE user_id = $3
+           AND installment_group_id = $4
+           AND installment_number >= $5`,
+        [RecordStatus.DELETED, nowTimestamp, userId, current.installment_group_id, current.installment_number]
       );
     } else {
       await dbPool.query(
         `UPDATE transactions
-         SET status = 'deleted', updated_at = $1
-         WHERE id = $2 AND user_id = $3`,
-        [nowTimestamp, transactionId, userId]
+         SET status = $1, updated_at = $2
+         WHERE id = $3 AND user_id = $4`,
+        [RecordStatus.DELETED, nowTimestamp, transactionId, userId]
       );
     }
 
@@ -374,7 +379,7 @@ export class TransactionsService {
       throw new NotFoundError('Gasto não encontrado.');
     }
 
-    const newStatus = existing.rows[0].status === 'hidden' ? 'active' : 'hidden';
+    const newStatus = existing.rows[0].status === RecordStatus.HIDDEN ? RecordStatus.ACTIVE : RecordStatus.HIDDEN;
 
     const result = await dbPool.query(
       `UPDATE transactions

@@ -3,7 +3,7 @@ import SwiftData
 
 /// Gerenciador central de persistência e sincronização offline com SwiftData para o Cofrinho.
 /// Permite funcionamento instantâneo da interface (0ms), cache resiliente e sincronização
-/// em segundo plano de gastos registrados offline.
+/// em segundo plano de criações, alterações de visibilidade e exclusões realizadas offline.
 @MainActor
 public final class LocalDataManager {
     public static let shared = LocalDataManager()
@@ -32,7 +32,10 @@ public final class LocalDataManager {
     // MARK: - Gestão de Transações no Cache
 
     /// Salva ou atualiza uma lista de transações retornadas pelo servidor no SwiftData.
+    /// Preserva mutações locais ainda não sincronizadas (pending_update / pending_delete).
     public func cacheTransactions(_ transactions: [TransactionModel]) {
+        let syncedRaw = SyncStatus.synced.rawValue
+
         for tx in transactions {
             let serverId = tx.id
             var descriptor = FetchDescriptor<LocalTransaction>(
@@ -41,6 +44,9 @@ public final class LocalDataManager {
             descriptor.fetchLimit = 1
 
             if let existing = try? context.fetch(descriptor).first {
+                guard existing.syncStatus == syncedRaw else {
+                    continue
+                }
                 existing.amount = NSDecimalNumber(decimal: tx.amount).doubleValue
                 existing.transactionDescription = tx.description
                 existing.date = tx.date
@@ -60,7 +66,7 @@ public final class LocalDataManager {
                 existing.totalInstallments = tx.totalInstallments
                 existing.installmentGroupId = tx.installmentGroupId
                 existing.updatedAt = tx.updatedAt
-                existing.syncStatus = "synced"
+                existing.syncStatus = syncedRaw
             } else {
                 let local = LocalTransaction(
                     serverId: tx.id,
@@ -79,7 +85,7 @@ public final class LocalDataManager {
                     installmentGroupId: tx.installmentGroupId,
                     createdAt: tx.createdAt,
                     updatedAt: tx.updatedAt,
-                    syncStatus: "synced",
+                    syncStatus: syncedRaw,
                     categoryName: tx.category?.name,
                     categoryIcon: tx.category?.icon,
                     categoryColor: tx.category?.color,
@@ -101,7 +107,7 @@ public final class LocalDataManager {
         year: Int,
         categoryId: Int? = nil,
         accountId: Int? = nil,
-        status: String = "active"
+        status: TransactionFilterStatus = .active
     ) -> [TransactionModel] {
         var startComponents = DateComponents()
         startComponents.year = year
@@ -123,16 +129,24 @@ public final class LocalDataManager {
         let endDate = Calendar.current.date(from: endComponents) ?? Date()
         let endEpoch = Int(endDate.timeIntervalSince1970 * 1000)
 
+        let deletedRaw = RecordStatus.deleted.rawValue
         let descriptor = FetchDescriptor<LocalTransaction>(
-            predicate: #Predicate { $0.date >= startEpoch && $0.date < endEpoch && $0.status != "deleted" },
+            predicate: #Predicate { $0.date >= startEpoch && $0.date < endEpoch && $0.status != deletedRaw },
             sortBy: [SortDescriptor(\.date, order: .reverse)]
         )
 
         let entities = (try? context.fetch(descriptor)) ?? []
         return entities
             .filter { item in
-                if status == "active" && item.status != "active" { return false }
-                if status == "hidden" && item.status != "hidden" { return false }
+                let itemStatus = RecordStatus(rawValue: item.status) ?? .active
+                switch status {
+                case .active:
+                    if itemStatus != .active { return false }
+                case .hidden:
+                    if itemStatus != .hidden { return false }
+                case .all:
+                    if itemStatus == .deleted { return false }
+                }
                 if let categoryId, item.categoryId != categoryId { return false }
                 if let accountId, item.accountId != accountId { return false }
                 return true
@@ -157,15 +171,15 @@ public final class LocalDataManager {
             userId: userId,
             categoryId: category.id,
             accountId: account.id,
-            type: "expense",
+            type: TransactionType.expense.rawValue,
             amount: amount,
             transactionDescription: description,
             date: date,
             hasTime: hasTime,
-            status: "active",
+            status: RecordStatus.active.rawValue,
             isInstallment: isInstallment,
             totalInstallments: isInstallment ? installmentsCount : nil,
-            syncStatus: "pending_create",
+            syncStatus: SyncStatus.pendingCreate.rawValue,
             categoryName: category.name,
             categoryIcon: category.icon,
             categoryColor: category.color,
@@ -181,42 +195,174 @@ public final class LocalDataManager {
         return local.toModel()
     }
 
-    /// Sincroniza todas as transações pendentes criadas offline com a VPS.
+    /// Marca uma transação para exclusão offline (ou remove imediatamente se ainda não foi sincronizada).
+    public func markOfflineDelete(id: Int, cascade: DeleteCascadeMode = .single) {
+        let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+        guard let target = findLocalTransaction(byDisplayId: id) else { return }
+
+        if cascade == .allFuture,
+           let groupId = target.installmentGroupId,
+           let currentNum = target.installmentNumber {
+            let groupDescriptor = FetchDescriptor<LocalTransaction>(
+                predicate: #Predicate { $0.installmentGroupId == groupId }
+            )
+            let matches = (try? context.fetch(groupDescriptor)) ?? []
+            for item in matches where (item.installmentNumber ?? 0) >= currentNum {
+                applyOfflineDelete(to: item, nowMs: nowMs)
+            }
+        } else {
+            applyOfflineDelete(to: target, nowMs: nowMs)
+        }
+
+        try? context.save()
+    }
+
+    /// Alterna a visibilidade (active <-> hidden) localmente no SwiftData e agenda sincronização.
+    public func markOfflineToggleVisibility(id: Int) {
+        guard let item = findLocalTransaction(byDisplayId: id) else { return }
+
+        let currentStatus = RecordStatus(rawValue: item.status) ?? .active
+        let newStatus: RecordStatus = (currentStatus == .hidden) ? .active : .hidden
+        item.status = newStatus.rawValue
+        item.updatedAt = Int(Date().timeIntervalSince1970 * 1000)
+
+        if item.syncStatus == SyncStatus.synced.rawValue {
+            item.syncStatus = SyncStatus.pendingUpdate.rawValue
+        }
+
+        try? context.save()
+        AppLogger.shared.info("Visibilidade alterada offline para \(newStatus.rawValue) (id: \(id)).", category: .database)
+    }
+
+    /// Remove ou marca como deletado no cache local após confirmação de exclusão bem-sucedida na VPS.
+    public func removeSyncedTransaction(id: Int, cascade: DeleteCascadeMode = .single) {
+        guard let target = findLocalTransaction(byDisplayId: id) else { return }
+
+        if cascade == .allFuture,
+           let groupId = target.installmentGroupId,
+           let currentNum = target.installmentNumber {
+            let groupDescriptor = FetchDescriptor<LocalTransaction>(
+                predicate: #Predicate { $0.installmentGroupId == groupId }
+            )
+            let matches = (try? context.fetch(groupDescriptor)) ?? []
+            for item in matches where (item.installmentNumber ?? 0) >= currentNum {
+                context.delete(item)
+            }
+        } else {
+            context.delete(target)
+        }
+
+        try? context.save()
+    }
+
+    /// Sincroniza todas as mutações pendentes offline (`pending_create`, `pending_update`, `pending_delete`) com a VPS.
     public func syncPendingTransactions(token: String) async {
+        let syncedRaw = SyncStatus.synced.rawValue
         let descriptor = FetchDescriptor<LocalTransaction>(
-            predicate: #Predicate { $0.syncStatus == "pending_create" }
+            predicate: #Predicate { $0.syncStatus != syncedRaw },
+            sortBy: [SortDescriptor(\.createdAt, order: .forward)]
         )
 
         guard let pendings = try? context.fetch(descriptor), !pendings.isEmpty else {
             return
         }
 
-        AppLogger.shared.info("Iniciando sincronização de \(pendings.count) transações pendentes com a VPS...", category: .network)
+        AppLogger.shared.info("Iniciando sincronização de \(pendings.count) operações offline pendentes com a VPS...", category: .network)
 
         for item in pendings {
+            let currentSync = SyncStatus(rawValue: item.syncStatus) ?? .synced
             do {
-                let created = try await TransactionsAPIService.shared.createTransaction(
-                    token: token,
-                    description: item.transactionDescription,
-                    amount: item.amount,
-                    date: item.date,
-                    hasTime: item.hasTime,
-                    categoryId: item.categoryId,
-                    accountId: item.accountId,
-                    type: item.type,
-                    installmentsEnabled: item.isInstallment,
-                    installmentsCount: item.totalInstallments ?? 2
-                )
+                switch currentSync {
+                case .pendingCreate:
+                    let created = try await TransactionsAPIService.shared.createTransaction(
+                        token: token,
+                        description: item.transactionDescription,
+                        amount: item.amount,
+                        date: item.date,
+                        hasTime: item.hasTime,
+                        categoryId: item.categoryId,
+                        accountId: item.accountId,
+                        type: item.type,
+                        installmentsEnabled: item.isInstallment,
+                        installmentsCount: item.totalInstallments ?? 2
+                    )
 
-                item.serverId = created.id
-                item.syncStatus = "synced"
-                item.updatedAt = created.updatedAt
-                try? context.save()
-                AppLogger.shared.info("Transação offline \(item.localId) sincronizada com sucesso (serverId: \(created.id)).", category: .network)
+                    if item.status == RecordStatus.hidden.rawValue {
+                        _ = try await TransactionsAPIService.shared.updateTransaction(
+                            token: token,
+                            id: created.id,
+                            status: RecordStatus.hidden.rawValue
+                        )
+                    }
+
+                    item.serverId = created.id
+                    item.syncStatus = SyncStatus.synced.rawValue
+                    item.updatedAt = created.updatedAt
+                    try? context.save()
+                    AppLogger.shared.info("Criação offline \(item.localId) sincronizada (serverId: \(created.id)).", category: .network)
+
+                case .pendingUpdate:
+                    if let serverId = item.serverId {
+                        let updated = try await TransactionsAPIService.shared.updateTransaction(
+                            token: token,
+                            id: serverId,
+                            status: item.status
+                        )
+                        item.syncStatus = SyncStatus.synced.rawValue
+                        item.updatedAt = updated.updatedAt
+                        try? context.save()
+                        AppLogger.shared.info("Atualização offline \(serverId) sincronizada (status: \(item.status)).", category: .network)
+                    }
+
+                case .pendingDelete:
+                    if let serverId = item.serverId {
+                        try await TransactionsAPIService.shared.deleteTransaction(
+                            token: token,
+                            id: serverId,
+                            cascade: .single
+                        )
+                    }
+                    context.delete(item)
+                    try? context.save()
+                    AppLogger.shared.info("Exclusão offline \(item.localId) sincronizada com a VPS.", category: .network)
+
+                case .synced:
+                    break
+                }
             } catch {
                 AppLogger.shared.warning("Falha ao sincronizar item offline \(item.localId): \(error.localizedDescription)", category: .network)
-                break // Se a conexão falhou, interrompe e tenta na próxima janela
+                break
             }
+        }
+    }
+
+    // MARK: - Helpers Privados de Transações Locais
+
+    private func findLocalTransaction(byDisplayId id: Int) -> LocalTransaction? {
+        if id > 0 {
+            var descriptor = FetchDescriptor<LocalTransaction>(
+                predicate: #Predicate { $0.serverId == id }
+            )
+            descriptor.fetchLimit = 1
+            return try? context.fetch(descriptor).first
+        } else {
+            let descriptor = FetchDescriptor<LocalTransaction>(
+                predicate: #Predicate { $0.serverId == nil }
+            )
+            let unsynced = (try? context.fetch(descriptor)) ?? []
+            return unsynced.first(where: { $0.stableDisplayId == id })
+        }
+    }
+
+    private func applyOfflineDelete(to item: LocalTransaction, nowMs: Int) {
+        if item.syncStatus == SyncStatus.pendingCreate.rawValue && item.serverId == nil {
+            context.delete(item)
+            AppLogger.shared.info("Transação offline não sincronizada removida localmente (\(item.localId)).", category: .database)
+        } else {
+            item.status = RecordStatus.deleted.rawValue
+            item.syncStatus = SyncStatus.pendingDelete.rawValue
+            item.updatedAt = nowMs
+            AppLogger.shared.info("Exclusão offline marcada para sincronização (serverId: \(item.serverId ?? 0)).", category: .database)
         }
     }
 
@@ -256,8 +402,9 @@ public final class LocalDataManager {
     }
 
     public func fetchCachedCategories() -> [CategoryModel] {
+        let activeRaw = RecordStatus.active.rawValue
         let descriptor = FetchDescriptor<LocalCategory>(
-            predicate: #Predicate { $0.status == "active" },
+            predicate: #Predicate { $0.status == activeRaw },
             sortBy: [SortDescriptor(\.name)]
         )
         let entities = (try? context.fetch(descriptor)) ?? []
@@ -304,12 +451,12 @@ public final class LocalDataManager {
     }
 
     public func fetchCachedAccounts() -> [AccountModel] {
+        let activeRaw = RecordStatus.active.rawValue
         let descriptor = FetchDescriptor<LocalAccount>(
-            predicate: #Predicate { $0.status == "active" },
+            predicate: #Predicate { $0.status == activeRaw },
             sortBy: [SortDescriptor(\.name)]
         )
         let entities = (try? context.fetch(descriptor)) ?? []
         return entities.map { $0.toModel() }
     }
 }
-

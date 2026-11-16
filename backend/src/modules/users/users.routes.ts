@@ -8,14 +8,13 @@ import {
   sessionListResponseSchema,
 } from './users.schemas.js';
 import { problemDetailsSchema } from '../auth/auth.schemas.js';
+import { authenticateRequest } from '../../shared/middlewares/authenticate.js';
 
 const usersService = new UsersService();
 
 export const usersRoutes: FastifyPluginAsyncZod = async (app) => {
-  /* Protege todas as rotas com autenticação JWT */
-  app.addHook('onRequest', async (request) => {
-    await request.jwtVerify();
-  });
+  /* Protege todas as rotas com autenticação JWT e validação de sessão ativa */
+  app.addHook('onRequest', authenticateRequest);
 
   /* 1. GET /v1/users/me */
   app.get(

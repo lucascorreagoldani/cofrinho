@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { recordStatusSchema } from '../../shared/constants/enums.js';
 
 export const categoryResponseSchema = z.object({
   id: z.number().int().positive().describe('ID numérico crescente da categoria'),
@@ -7,7 +8,7 @@ export const categoryResponseSchema = z.object({
   icon: z.string().min(1).max(60),
   color: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, 'Cor deve estar em formato Hex (#RRGGBB)'),
   is_default: z.boolean(),
-  status: z.enum(['active', 'hidden', 'deleted']),
+  status: recordStatusSchema,
   created_at: z.number().int(),
   updated_at: z.number().int(),
 });
@@ -26,7 +27,7 @@ export const updateCategoryBodySchema = z.object({
   name: z.string().min(1).max(100).trim().optional(),
   icon: z.string().min(1).max(60).optional(),
   color: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, 'Cor inválida').optional(),
-  status: z.enum(['active', 'hidden', 'deleted']).optional(),
+  status: recordStatusSchema.optional(),
 });
 
 export const listCategoriesQuerySchema = z.object({

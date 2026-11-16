@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sessionStatusSchema } from '../../shared/constants/enums.js';
 
 export const userProfileSchema = z.object({
   id: z.number().int().positive().describe('ID numérico crescente (1, 2, 3...)'),
@@ -36,7 +37,7 @@ export const sessionItemSchema = z.object({
   login_time: z.number().int().describe('Timestamp de login em epoch milissegundos'),
   logout_time: z.number().int().nullable().optional().describe('Timestamp de logout em epoch milissegundos'),
   duration: z.number().int().nullable().optional().describe('Duração da sessão em milissegundos'),
-  status: z.string(),
+  status: sessionStatusSchema,
   ip: z.string(),
   user_agent: z.string().nullable().optional(),
   is_current: z.boolean(),

@@ -103,7 +103,7 @@ public struct MonthYearPickerSheetView: View {
                         }
                         .frame(height: 150)
                         .background(Color(.secondarySystemBackground))
-                        .cornerRadius(16)
+                        .clipShape(.rect(cornerRadius: 16))
                     }
                     .padding(.horizontal)
 
@@ -125,7 +125,7 @@ public struct MonthYearPickerSheetView: View {
                     }
                     .padding(14)
                     .background(Color(.secondarySystemBackground))
-                    .cornerRadius(14)
+                    .clipShape(.rect(cornerRadius: 14))
                     .padding(.horizontal)
 
                     // MARK: - Botão de Confirmação
@@ -141,7 +141,7 @@ public struct MonthYearPickerSheetView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                             .background(Color.blue)
-                            .cornerRadius(12)
+                            .clipShape(.rect(cornerRadius: 12))
                     }
                     .padding(.horizontal)
                     .padding(.bottom, 16)
@@ -179,7 +179,7 @@ public struct MonthYearPickerSheetView: View {
             .padding(.vertical, 8)
             .background(isPrimary ? Color.blue.opacity(0.12) : Color(.secondarySystemBackground))
             .foregroundStyle(isPrimary ? Color.blue : Color.primary)
-            .cornerRadius(20)
+            .clipShape(.rect(cornerRadius: 20))
             .overlay(
                 RoundedRectangle(cornerRadius: 20)
                     .stroke(isPrimary ? Color.blue.opacity(0.3) : Color.clear, lineWidth: 1)

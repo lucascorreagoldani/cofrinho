@@ -134,6 +134,7 @@ public final class APIClient: @unchecked Sendable {
             if !(200...299).contains(httpResponse.statusCode) {
                 let problem = try? JSONDecoder().decode(ProblemDetailsDTO.self, from: data)
                 let msg = problem?.detail ?? problem?.title ?? "Erro na requisição (\(httpResponse.statusCode))"
+                let isAuthRoute = request.url?.path.contains("/auth/") == true
 
                 switch httpResponse.statusCode {
                 case 401:
@@ -143,11 +144,23 @@ public final class APIClient: @unchecked Sendable {
                         throw AuthError.unauthorized
                     }
                 case 409:
-                    throw AuthError.accountAlreadyExists(detail: msg)
+                    if isAuthRoute {
+                        throw AuthError.accountAlreadyExists(detail: msg)
+                    } else {
+                        throw ValidationError.custom(message: msg)
+                    }
                 case 400:
-                    throw AuthError.serverError(message: msg, incidentId: problem?.incidentId)
+                    if isAuthRoute {
+                        throw AuthError.serverError(message: msg, incidentId: problem?.incidentId)
+                    } else {
+                        throw ValidationError.custom(message: msg)
+                    }
                 default:
-                    throw NetworkError.serverError(statusCode: httpResponse.statusCode, message: msg)
+                    throw NetworkError.serverError(
+                        statusCode: httpResponse.statusCode,
+                        message: msg,
+                        incidentId: problem?.incidentId
+                    )
                 }
             }
 

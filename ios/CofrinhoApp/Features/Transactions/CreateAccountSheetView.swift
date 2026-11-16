@@ -6,20 +6,13 @@ public struct CreateAccountSheetView: View {
     let token: String
 
     @State private var name: String = ""
-    @State private var selectedType: String = "credit_card"
+    @State private var selectedType: AccountType = .creditCard
     @State private var selectedColorHex: String = "#0A84FF"
     @State private var allowsInstallments: Bool = true
     @State private var closingDay: Int = 20
     @State private var dueDay: Int = 27
     @State private var isSubmitting: Bool = false
     @State private var activeError: (any AppErrorProtocol)?
-
-    private let accountTypes = [
-        ("credit_card", "Cartão de Crédito", "creditcard.fill"),
-        ("pix", "PIX", "bolt.horizontal.fill"),
-        ("bank_account", "Conta Corrente", "building.columns.fill"),
-        ("cash", "Dinheiro", "banknote.fill")
-    ]
 
     private let availableColors = [
         "#0A84FF", "#5E5CE6", "#FF9F0A", "#30D158",
@@ -44,27 +37,24 @@ public struct CreateAccountSheetView: View {
                         TextField("Ex: Nubank Mastercard, PIX C6 Bank, Dinheiro", text: $name)
                             .padding()
                             .background(Color(.secondarySystemBackground))
-                            .cornerRadius(12)
+                            .clipShape(.rect(cornerRadius: 12))
                     }
 
-                    // Tipo de Conta
+                    // Tipo de Conta via Enum AccountType
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Tipo")
                             .font(.subheadline.weight(.medium))
                             .foregroundStyle(.secondary)
 
                         Picker("Tipo de Conta", selection: $selectedType) {
-                            ForEach(accountTypes, id: \.0) { item in
-                                Label(item.1, systemImage: item.2).tag(item.0)
+                            ForEach(AccountType.allCases) { accountType in
+                                Label(accountType.shortTitle, systemImage: accountType.defaultIcon)
+                                    .tag(accountType)
                             }
                         }
                         .pickerStyle(.segmented)
                         .onChange(of: selectedType) { _, newType in
-                            if newType == "credit_card" {
-                                allowsInstallments = true
-                            } else {
-                                allowsInstallments = false
-                            }
+                            allowsInstallments = newType.supportsInstallmentsByDefault
                         }
                     }
 
@@ -98,7 +88,7 @@ public struct CreateAccountSheetView: View {
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 8)
                                     .background(Color(.secondarySystemBackground))
-                                    .cornerRadius(10)
+                                    .clipShape(.rect(cornerRadius: 10))
                                 }
 
                                 VStack(alignment: .leading, spacing: 4) {
@@ -114,14 +104,14 @@ public struct CreateAccountSheetView: View {
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 8)
                                     .background(Color(.secondarySystemBackground))
-                                    .cornerRadius(10)
+                                    .clipShape(.rect(cornerRadius: 10))
                                 }
                             }
                         }
                     }
                     .padding()
                     .background(Color(.secondarySystemBackground).opacity(0.6))
-                    .cornerRadius(12)
+                    .clipShape(.rect(cornerRadius: 12))
 
                     // Seletor de Cores
                     VStack(alignment: .leading, spacing: 8) {
@@ -136,7 +126,7 @@ public struct CreateAccountSheetView: View {
                                 } label: {
                                     ZStack {
                                         Circle()
-                                            .fill(colorFromHex(hex))
+                                            .fill(Color(hex: hex, defaultColor: .blue))
                                             .frame(width: 36, height: 36)
 
                                         if selectedColorHex == hex {
@@ -170,8 +160,8 @@ public struct CreateAccountSheetView: View {
                             Spacer()
                         }
                         .frame(height: 50)
-                        .background(name.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray.opacity(0.5) : colorFromHex(selectedColorHex))
-                        .cornerRadius(12)
+                        .background(name.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray.opacity(0.5) : Color(hex: selectedColorHex, defaultColor: .blue))
+                        .clipShape(.rect(cornerRadius: 12))
                     }
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSubmitting)
                     .padding(.top, 10)
@@ -199,14 +189,12 @@ public struct CreateAccountSheetView: View {
         isSubmitting = true
         activeError = nil
 
-        let iconName = accountTypes.first(where: { $0.0 == selectedType })?.2 ?? "creditcard.fill"
-
         do {
             let created = try await AccountsAPIService.shared.createAccount(
                 token: token,
                 name: trimmed,
-                type: selectedType,
-                icon: iconName,
+                type: selectedType.rawValue,
+                icon: selectedType.defaultIcon,
                 color: selectedColorHex,
                 allowsInstallments: allowsInstallments,
                 closingDay: allowsInstallments ? closingDay : nil,
@@ -214,7 +202,7 @@ public struct CreateAccountSheetView: View {
             )
             viewModel.accounts.append(created)
             viewModel.selectedAccount = created
-            AppLogger.shared.info("Nova conta criada: \(trimmed)", category: .business)
+            AppLogger.shared.info("Nova conta criada: \(trimmed) (\(selectedType.rawValue))", category: .business)
             dismiss()
         } catch let err as any AppErrorProtocol {
             activeError = err
@@ -227,19 +215,4 @@ public struct CreateAccountSheetView: View {
             isSubmitting = false
         }
     }
-
-    private func colorFromHex(_ hex: String) -> Color {
-        let clean = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: clean).scanHexInt64(&int)
-        let r, g, b: UInt64
-        switch clean.count {
-        case 6:
-            (r, g, b) = (int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (r, g, b) = (10, 132, 255)
-        }
-        return Color(.sRGB, red: Double(r)/255, green: Double(g)/255, blue: Double(b)/255, opacity: 1.0)
-    }
 }
-

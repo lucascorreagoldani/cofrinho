@@ -37,9 +37,9 @@ public struct CreateCategorySheetView: View {
                         Spacer()
                         ZStack {
                             Circle()
-                                .fill(colorFromHex(selectedColorHex))
+                                .fill(Color(hex: selectedColorHex))
                                 .frame(width: 72, height: 72)
-                                .shadow(color: colorFromHex(selectedColorHex).opacity(0.4), radius: 8, y: 4)
+                                .shadow(color: Color(hex: selectedColorHex).opacity(0.4), radius: 8, y: 4)
 
                             Image(systemName: selectedIcon)
                                 .font(.system(size: 32, weight: .semibold))
@@ -58,7 +58,7 @@ public struct CreateCategorySheetView: View {
                         TextField("Ex: Lanches, Academia, Assinaturas", text: $name)
                             .padding()
                             .background(Color(.secondarySystemBackground))
-                            .cornerRadius(12)
+                            .clipShape(.rect(cornerRadius: 12))
                     }
 
                     // Seletor de Ícone SF Symbol
@@ -74,16 +74,16 @@ public struct CreateCategorySheetView: View {
                                 } label: {
                                     ZStack {
                                         RoundedRectangle(cornerRadius: 12)
-                                            .fill(selectedIcon == icon ? colorFromHex(selectedColorHex).opacity(0.2) : Color(.secondarySystemBackground))
+                                            .fill(selectedIcon == icon ? Color(hex: selectedColorHex).opacity(0.2) : Color(.secondarySystemBackground))
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(selectedIcon == icon ? colorFromHex(selectedColorHex) : Color.clear, lineWidth: 2)
+                                                    .stroke(selectedIcon == icon ? Color(hex: selectedColorHex) : Color.clear, lineWidth: 2)
                                             )
                                             .frame(height: 52)
 
                                         Image(systemName: icon)
                                             .font(.system(size: 20))
-                                            .foregroundStyle(selectedIcon == icon ? colorFromHex(selectedColorHex) : .primary)
+                                            .foregroundStyle(selectedIcon == icon ? Color(hex: selectedColorHex) : .primary)
                                     }
                                 }
                                 .buttonStyle(.plain)
@@ -104,7 +104,7 @@ public struct CreateCategorySheetView: View {
                                 } label: {
                                     ZStack {
                                         Circle()
-                                            .fill(colorFromHex(hex))
+                                            .fill(Color(hex: hex))
                                             .frame(width: 36, height: 36)
 
                                         if selectedColorHex == hex {
@@ -138,8 +138,8 @@ public struct CreateCategorySheetView: View {
                             Spacer()
                         }
                         .frame(height: 50)
-                        .background(name.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray.opacity(0.5) : colorFromHex(selectedColorHex))
-                        .cornerRadius(12)
+                        .background(name.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray.opacity(0.5) : Color(hex: selectedColorHex))
+                        .clipShape(.rect(cornerRadius: 12))
                     }
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSubmitting)
                     .padding(.top, 10)
@@ -189,19 +189,4 @@ public struct CreateCategorySheetView: View {
             isSubmitting = false
         }
     }
-
-    private func colorFromHex(_ hex: String) -> Color {
-        let clean = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: clean).scanHexInt64(&int)
-        let r, g, b: UInt64
-        switch clean.count {
-        case 6:
-            (r, g, b) = (int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (r, g, b) = (255, 149, 0)
-        }
-        return Color(.sRGB, red: Double(r)/255, green: Double(g)/255, blue: Double(b)/255, opacity: 1.0)
-    }
 }
-

@@ -1,12 +1,7 @@
 import { z } from 'zod';
+import { AccountType, accountTypeSchema, recordStatusSchema } from '../../shared/constants/enums.js';
 
-export const accountTypeSchema = z.enum([
-  'credit_card',
-  'bank_account',
-  'wallet',
-  'pix',
-  'cash',
-]);
+export { accountTypeSchema };
 
 export const accountResponseSchema = z.object({
   id: z.number().int().positive().describe('ID numérico crescente da conta'),
@@ -18,7 +13,7 @@ export const accountResponseSchema = z.object({
   allows_installments: z.boolean(),
   closing_day: z.number().int().min(1).max(31).nullable().optional(),
   due_day: z.number().int().min(1).max(31).nullable().optional(),
-  status: z.enum(['active', 'hidden', 'deleted']),
+  status: recordStatusSchema,
   created_at: z.number().int(),
   updated_at: z.number().int(),
 });
@@ -30,7 +25,7 @@ export const createAccountBodySchema = z
       .min(1, 'Nome não pode ser vazio')
       .max(100, 'Nome deve ter no máximo 100 caracteres')
       .trim(),
-    type: accountTypeSchema.default('bank_account'),
+    type: accountTypeSchema.default(AccountType.BANK_ACCOUNT),
     icon: z.string().default('creditcard.fill'),
     color: z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, 'Cor inválida').default('#007AFF'),
     allows_installments: z.boolean().default(false),
@@ -59,7 +54,7 @@ export const updateAccountBodySchema = z.object({
   allows_installments: z.boolean().optional(),
   closing_day: z.number().int().min(1).max(31).nullable().optional(),
   due_day: z.number().int().min(1).max(31).nullable().optional(),
-  status: z.enum(['active', 'hidden', 'deleted']).optional(),
+  status: recordStatusSchema.optional(),
 });
 
 export const listAccountsQuerySchema = z.object({

@@ -43,7 +43,7 @@ public struct NewExpenseView: View {
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 12)
                                 .background(Color(.secondarySystemBackground))
-                                .cornerRadius(10)
+                                .clipShape(.rect(cornerRadius: 10))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 10)
                                         .stroke(isDescriptionFocused ? Color.blue : Color.clear, lineWidth: 1.5)
@@ -64,7 +64,7 @@ public struct NewExpenseView: View {
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 12)
                                 .background(Color(.secondarySystemBackground))
-                                .cornerRadius(10)
+                                .clipShape(.rect(cornerRadius: 10))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 10)
                                         .stroke(isAmountFocused ? Color.blue : Color.clear, lineWidth: 1.5)
@@ -96,7 +96,7 @@ public struct NewExpenseView: View {
                                         .padding(.vertical, 6)
                                         .background(Color.blue.opacity(0.12))
                                         .foregroundStyle(Color.blue)
-                                        .cornerRadius(16)
+                                        .clipShape(.rect(cornerRadius: 16))
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -127,7 +127,7 @@ public struct NewExpenseView: View {
                             .padding(.horizontal, 4)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color(.secondarySystemBackground))
-                            .cornerRadius(10)
+                            .clipShape(.rect(cornerRadius: 10))
                         }
                         .frame(maxWidth: .infinity)
 
@@ -180,7 +180,7 @@ public struct NewExpenseView: View {
                                 .padding(.vertical, 10)
                                 .frame(height: 38)
                                 .background(Color(.secondarySystemBackground))
-                                .cornerRadius(10)
+                                .clipShape(.rect(cornerRadius: 10))
                             }
                             .buttonStyle(.plain)
                         }
@@ -238,7 +238,7 @@ public struct NewExpenseView: View {
                                 .padding(.vertical, 10)
                                 .frame(height: 38)
                                 .background(Color(.secondarySystemBackground))
-                                .cornerRadius(10)
+                                .clipShape(.rect(cornerRadius: 10))
                             }
                             .buttonStyle(.plain)
                         }
@@ -284,7 +284,7 @@ public struct NewExpenseView: View {
                                             .padding(.horizontal, 10)
                                             .padding(.vertical, 6)
                                             .background(Color.blue.opacity(0.12))
-                                            .cornerRadius(8)
+                                            .clipShape(.rect(cornerRadius: 8))
                                     }
                                 }
 
@@ -303,7 +303,7 @@ public struct NewExpenseView: View {
                         }
                         .padding()
                         .background(Color(.secondarySystemBackground).opacity(0.6))
-                        .cornerRadius(12)
+                        .clipShape(.rect(cornerRadius: 12))
                     }
 
                     // LINHA 4: Botão de Ação "+ Adicionar Gasto"
@@ -334,7 +334,7 @@ public struct NewExpenseView: View {
                         .frame(height: 50)
                         .background(Color(red: 0.31, green: 0.27, blue: 0.90))
                         .foregroundStyle(.white)
-                        .cornerRadius(12)
+                        .clipShape(.rect(cornerRadius: 12))
                         .shadow(color: Color(red: 0.31, green: 0.27, blue: 0.90).opacity(0.35), radius: 8, y: 4)
                     }
                     .disabled(viewModel.isSaving)
@@ -342,7 +342,7 @@ public struct NewExpenseView: View {
                 }
                 .padding(20)
                 .background(Color(.systemBackground))
-                .cornerRadius(20)
+                .clipShape(.rect(cornerRadius: 20))
                 .shadow(color: Color.black.opacity(0.06), radius: 14, x: 0, y: 4)
                 .padding(.horizontal)
             }

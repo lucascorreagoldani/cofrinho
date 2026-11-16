@@ -54,23 +54,14 @@ public final class NewExpenseViewModel {
     }
 
     private func formatAmountString() {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "BRL"
-        formatter.locale = Locale(identifier: "pt_BR")
-        amountInputString = formatter.string(from: NSNumber(value: rawAmount)) ?? "R$ 0,00"
+        amountInputString = rawAmount.brlCurrencyFormatted
     }
 
     // MARK: - Cálculo de Parcelamento e Datas de Fatura
     public var installmentSummaryText: String {
         guard rawAmount > 0, installmentsCount > 1 else { return "" }
         let perInstallment = rawAmount / Double(installmentsCount)
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "BRL"
-        formatter.locale = Locale(identifier: "pt_BR")
-        let formattedVal = formatter.string(from: NSNumber(value: perInstallment)) ?? "R$ 0,00"
-        return "\(installmentsCount)x de \(formattedVal)"
+        return "\(installmentsCount)x de \(perInstallment.brlCurrencyFormatted)"
     }
 
     /// Retorna string com primeira e última fatura calculadas dinamicamente
@@ -100,12 +91,7 @@ public final class NewExpenseViewModel {
         lastComponents.day = min(dueDay, calendar.range(of: .day, in: .month, for: lastInvoiceDate)?.count ?? 30)
         let lastFinalDate = calendar.date(from: lastComponents) ?? lastInvoiceDate
 
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "dd/MM/yyyy"
-        let firstStr = dateFormatter.string(from: firstFinalDate)
-        let lastStr = dateFormatter.string(from: lastFinalDate)
-
-        return "Primeira fatura: \(firstStr) • Última fatura: \(lastStr)"
+        return "Primeira fatura: \(firstFinalDate.brShortDateFormatted) • Última fatura: \(lastFinalDate.brShortDateFormatted)"
     }
 
     // MARK: - Carregamento Inicial

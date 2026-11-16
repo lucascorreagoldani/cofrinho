@@ -1,11 +1,11 @@
 import SwiftUI
 
 /// Sheet avançada de filtros do Extrato do Cofrinho.
-/// Permite filtrar por Conta específica, Categoria, Período e ativar a visualização de gastos ocultos.
+/// Permite filtrar por Conta específica, Categoria, Período e ativar a visualização de gastos ocultos via Enums canônicos.
 public struct TransactionsFilterSheetView: View {
     @Binding var selectedAccountId: Int?
     @Binding var selectedCategoryId: Int?
-    @Binding var filterStatus: String
+    @Binding var filterStatus: TransactionFilterStatus
     @Binding var selectedMonth: Int
     @Binding var selectedYear: Int
 
@@ -17,14 +17,14 @@ public struct TransactionsFilterSheetView: View {
 
     @State private var tempAccountId: Int?
     @State private var tempCategoryId: Int?
-    @State private var tempStatus: String
+    @State private var tempStatus: TransactionFilterStatus
     @State private var tempMonth: Int
     @State private var tempYear: Int
 
     public init(
         selectedAccountId: Binding<Int?>,
         selectedCategoryId: Binding<Int?>,
-        filterStatus: Binding<String>,
+        filterStatus: Binding<TransactionFilterStatus>,
         selectedMonth: Binding<Int>,
         selectedYear: Binding<Int>,
         accounts: [AccountModel],
@@ -102,12 +102,12 @@ public struct TransactionsFilterSheetView: View {
                     }
                 }
 
-                // MARK: - Status e Gastos Ocultos
+                // MARK: - Status e Gastos Ocultos (via TransactionFilterStatus)
                 Section {
                     Picker("Status dos Lançamentos", selection: $tempStatus) {
-                        Text("Ativas").tag("active")
-                        Text("Todas (com ocultas)").tag("all")
-                        Text("Apenas Ocultas").tag("hidden")
+                        ForEach(TransactionFilterStatus.allCases) { statusCase in
+                            Text(statusCase.localizedTitle).tag(statusCase)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .padding(.vertical, 4)
@@ -115,11 +115,12 @@ public struct TransactionsFilterSheetView: View {
                     Label("Visibilidade & Ocultas", systemImage: "eye.fill")
                 } footer: {
                     VStack(alignment: .leading, spacing: 4) {
-                        if tempStatus == "active" {
+                        switch tempStatus {
+                        case .active:
                             Text("Exibindo apenas gastos ativos no extrato.")
-                        } else if tempStatus == "all" {
+                        case .all:
                             Text("Exibindo gastos ativos e gastos que você ocultou. Arraste qualquer item oculto no extrato para desocultá-lo.")
-                        } else {
+                        case .hidden:
                             Text("Exibindo exclusivamente os gastos que você ocultou. Você pode desocultar qualquer um arrastando para o lado.")
                         }
                     }
@@ -199,7 +200,7 @@ public struct TransactionsFilterSheetView: View {
     private func clearFilters() {
         tempAccountId = nil
         tempCategoryId = nil
-        tempStatus = "active"
+        tempStatus = .active
         let now = Date()
         tempMonth = Calendar.current.component(.month, from: now)
         tempYear = Calendar.current.component(.year, from: now)
@@ -215,4 +216,3 @@ public struct TransactionsFilterSheetView: View {
         onApply()
     }
 }
-

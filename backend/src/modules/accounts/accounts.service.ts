@@ -2,6 +2,7 @@ import { dbPool } from '../../database/postgres.js';
 import { redis } from '../../database/redis.js';
 import { ConflictError, NotFoundError } from '../../shared/errors/AppError.js';
 import { CANONICAL_ACCOUNTS } from '../../shared/constants/defaults.js';
+import { RecordStatus } from '../../shared/constants/enums.js';
 import { z } from 'zod';
 import {
   accountResponseSchema,
@@ -33,7 +34,9 @@ export class AccountsService {
     }
 
     /* 2. Consulta no PostgreSQL */
-    const statuses = includeHidden ? ['active', 'hidden'] : ['active'];
+    const statuses = includeHidden
+      ? [RecordStatus.ACTIVE, RecordStatus.HIDDEN]
+      : [RecordStatus.ACTIVE];
     const result = await dbPool.query(
       `SELECT id, user_id, name, type, icon, color, allows_installments, closing_day, due_day, status, created_at, updated_at
        FROM accounts
@@ -232,7 +235,7 @@ export class AccountsService {
     }
 
     const currentStatus = existing.rows[0].status;
-    const newStatus = currentStatus === 'hidden' ? 'active' : 'hidden';
+    const newStatus = currentStatus === RecordStatus.HIDDEN ? RecordStatus.ACTIVE : RecordStatus.HIDDEN;
 
     const result = await dbPool.query(
       `UPDATE accounts

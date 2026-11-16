@@ -17,12 +17,12 @@ public final class TransactionsAPIService: Sendable {
         year: Int? = nil,
         categoryId: Int? = nil,
         accountId: Int? = nil,
-        status: String = "active",
+        status: TransactionFilterStatus = .active,
         page: Int = 1,
         limit: Int = 50
     ) async throws -> [TransactionModel] {
         var queryItems = [
-            URLQueryItem(name: "status", value: status),
+            URLQueryItem(name: "status", value: status.rawValue),
             URLQueryItem(name: "page", value: "\(page)"),
             URLQueryItem(name: "limit", value: "\(limit)")
         ]
@@ -129,12 +129,12 @@ public final class TransactionsAPIService: Sendable {
     }
 
     /// Exclui um gasto (soft delete), com opção de excluir apenas esta parcela ou todas as futuras
-    public func deleteTransaction(token: String, id: Int, cascade: String = "single") async throws {
+    public func deleteTransaction(token: String, id: Int, cascade: DeleteCascadeMode = .single) async throws {
         let endpoint = try Endpoint(
             path: "/v1/transactions/\(id)",
             method: .delete,
             token: token,
-            queryItems: [URLQueryItem(name: "cascade", value: cascade)]
+            queryItems: [URLQueryItem(name: "cascade", value: cascade.rawValue)]
         )
         try await client.execute(endpoint)
     }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sessionStatusSchema } from '../../shared/constants/enums.js';
 
 export const registerBodySchema = z.object({
   username: z
@@ -45,7 +46,7 @@ export const authSuccessResponseSchema = z.object({
   user: userResponseSchema,
   session: z.object({
     id: z.string().uuid(),
-    status: z.string(),
+    status: sessionStatusSchema,
     expires_at: z.number().int().describe('Timestamp de expiração em epoch milissegundos'),
   }),
 });

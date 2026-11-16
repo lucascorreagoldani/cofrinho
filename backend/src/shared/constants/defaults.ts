@@ -1,3 +1,5 @@
+import { AccountType } from './enums.js';
+
 /**
  * Categorias e Contas Canônicas padrão para inicialização de novas contas de usuário.
  */
@@ -10,7 +12,7 @@ export interface DefaultCategory {
 
 export interface DefaultAccount {
   name: string;
-  type: 'credit_card' | 'bank_account' | 'wallet' | 'pix' | 'cash';
+  type: AccountType;
   icon: string;
   color: string;
   allows_installments: boolean;
@@ -30,7 +32,7 @@ export const CANONICAL_CATEGORIES: readonly DefaultCategory[] = [
 export const CANONICAL_ACCOUNTS: readonly DefaultAccount[] = [
   {
     name: 'Cartão de Crédito',
-    type: 'credit_card',
+    type: AccountType.CREDIT_CARD,
     icon: 'creditcard.fill',
     color: '#5856D6',
     allows_installments: true,
@@ -39,14 +41,14 @@ export const CANONICAL_ACCOUNTS: readonly DefaultAccount[] = [
   },
   {
     name: 'PIX',
-    type: 'pix',
+    type: AccountType.PIX,
     icon: 'bolt.fill',
     color: '#00C7BE',
     allows_installments: false,
   },
   {
     name: 'Dinheiro',
-    type: 'cash',
+    type: AccountType.CASH,
     icon: 'banknote.fill',
     color: '#34C759',
     allows_installments: false,

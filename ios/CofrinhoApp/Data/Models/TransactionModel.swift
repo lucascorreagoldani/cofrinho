@@ -170,26 +170,29 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
         self.updatedAt = try container.decode(Int.self, forKey: .updatedAt)
     }
 
+    /// Status tipado via Enum canônico
+    public var statusEnum: RecordStatus {
+        RecordStatus(rawValue: status) ?? .active
+    }
+
+    /// Tipo tipado via Enum canônico
+    public var typeEnum: TransactionType {
+        TransactionType(rawValue: type) ?? .expense
+    }
+
     /// Objeto Date correspondente ao timestamp numérico em epoch ms.
     public var dateValue: Date {
         Date(timeIntervalSince1970: TimeInterval(date) / 1000.0)
     }
 
-    /// Formatação monetária padronizada em Real (R$ 0,00).
+    /// Formatação monetária padronizada em Real (R$ 0,00) via FormatStyle nativo.
     public var formattedAmount: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "BRL"
-        formatter.locale = Locale(identifier: "pt_BR")
-        return formatter.string(from: amount as NSDecimalNumber) ?? "R$ 0,00"
+        amount.brlCurrencyFormatted
     }
 
-    /// Data formatada amigável (DD/MM/AAAA)
+    /// Data formatada amigável (DD/MM/AAAA) via FormatStyle nativo.
     public var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "dd/MM/yyyy"
-        formatter.locale = Locale(identifier: "pt_BR")
-        return formatter.string(from: dateValue)
+        dateValue.brShortDateFormatted
     }
 
     /// Identificador visual da parcela (ex: "1/10")

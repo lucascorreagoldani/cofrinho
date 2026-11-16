@@ -8,31 +8,13 @@ import {
   listAccountsQuerySchema,
 } from './accounts.schemas.js';
 import { problemDetailsSchema } from '../auth/auth.schemas.js';
+import { authenticateRequest, getAuthenticatedUserId } from '../../shared/middlewares/authenticate.js';
 
 const accountsService = new AccountsService();
 
-function getUserId(request: any): number {
-  const user = request.user as { userId?: number; sub?: string } | undefined;
-  return user?.userId ? Number(user.userId) : Number(user?.sub);
-}
-
 export const accountsRoutes: FastifyPluginAsyncZod = async (app) => {
-  /* Hook de Autenticação JWT */
-  app.addHook('onRequest', async (request, reply) => {
-    try {
-      await request.jwtVerify();
-    } catch (err) {
-      return reply.status(401).send({
-        type: 'https://cofrinho.app/errors/unauthorized',
-        title: 'Não Autorizado',
-        status: 401,
-        detail: 'Token de autenticação ausente ou expirado.',
-        code: 'AUTH_001',
-        incidentId: 'incident_jwt_required',
-        timestamp: Date.now(),
-      });
-    }
-  });
+  /* Hook canônico de autenticação JWT + validação de sessão no Redis/PostgreSQL */
+  app.addHook('onRequest', authenticateRequest);
 
   /* 1. GET /v1/accounts - Listar contas */
   app.get(
@@ -49,7 +31,7 @@ export const accountsRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userId = getUserId(request);
+      const userId = getAuthenticatedUserId(request);
       const accounts = await accountsService.listAccounts(
         userId,
         request.query.include_hidden
@@ -69,12 +51,13 @@ export const accountsRoutes: FastifyPluginAsyncZod = async (app) => {
         response: {
           201: accountResponseSchema,
           400: problemDetailsSchema,
+          401: problemDetailsSchema,
           409: problemDetailsSchema,
         },
       },
     },
     async (request, reply) => {
-      const userId = getUserId(request);
+      const userId = getAuthenticatedUserId(request);
       const account = await accountsService.createAccount(userId, request.body);
       return reply.status(201).send(account);
     }
@@ -91,13 +74,14 @@ export const accountsRoutes: FastifyPluginAsyncZod = async (app) => {
         body: updateAccountBodySchema,
         response: {
           200: accountResponseSchema,
+          401: problemDetailsSchema,
           404: problemDetailsSchema,
           409: problemDetailsSchema,
         },
       },
     },
     async (request, reply) => {
-      const userId = getUserId(request);
+      const userId = getAuthenticatedUserId(request);
       const updated = await accountsService.updateAccount(
         userId,
         request.params.id,
@@ -117,12 +101,13 @@ export const accountsRoutes: FastifyPluginAsyncZod = async (app) => {
         params: z.object({ id: z.coerce.number().int().positive() }),
         response: {
           204: z.null(),
+          401: problemDetailsSchema,
           404: problemDetailsSchema,
         },
       },
     },
     async (request, reply) => {
-      const userId = getUserId(request);
+      const userId = getAuthenticatedUserId(request);
       await accountsService.deleteAccount(userId, request.params.id);
       return reply.status(204).send(null);
     }
@@ -138,12 +123,13 @@ export const accountsRoutes: FastifyPluginAsyncZod = async (app) => {
         params: z.object({ id: z.coerce.number().int().positive() }),
         response: {
           200: accountResponseSchema,
+          401: problemDetailsSchema,
           404: problemDetailsSchema,
         },
       },
     },
     async (request, reply) => {
-      const userId = getUserId(request);
+      const userId = getAuthenticatedUserId(request);
       const result = await accountsService.toggleAccountVisibility(userId, request.params.id);
       return reply.status(200).send(result);
     }

@@ -1,7 +1,16 @@
 import { z } from 'zod';
+import {
+  DeleteCascadeMode,
+  TransactionFilterStatus,
+  TransactionType,
+  deleteCascadeModeSchema,
+  recordStatusSchema,
+  transactionFilterStatusSchema,
+  transactionTypeSchema,
+} from '../../shared/constants/enums.js';
 
-export const transactionStatusSchema = z.enum(['active', 'hidden', 'deleted']);
-export const transactionTypeSchema = z.enum(['expense', 'income']);
+export const transactionStatusSchema = recordStatusSchema;
+export { transactionTypeSchema };
 
 export const transactionCategoryRelationSchema = z.object({
   id: z.number().int().positive(),
@@ -50,7 +59,7 @@ export const createTransactionBodySchema = z.object({
   has_time: z.boolean().default(false),
   category_id: z.number({ required_error: 'Categoria é obrigatória' }).int().positive(),
   account_id: z.number({ required_error: 'Conta é obrigatória' }).int().positive(),
-  type: transactionTypeSchema.default('expense'),
+  type: transactionTypeSchema.default(TransactionType.EXPENSE),
   installments: z
     .object({
       enabled: z.boolean().default(false),
@@ -72,7 +81,7 @@ export const updateTransactionBodySchema = z.object({
 export const listTransactionsQuerySchema = z.object({
   month: z.coerce.number().int().min(1).max(12).optional(),
   year: z.coerce.number().int().min(2000).max(2100).optional(),
-  status: z.enum(['active', 'hidden', 'all', 'deleted']).default('active'),
+  status: transactionFilterStatusSchema.default(TransactionFilterStatus.ACTIVE),
   category_id: z.coerce.number().int().positive().optional(),
   account_id: z.coerce.number().int().positive().optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -80,7 +89,7 @@ export const listTransactionsQuerySchema = z.object({
 });
 
 export const deleteTransactionQuerySchema = z.object({
-  cascade: z.enum(['single', 'all_future']).default('single'),
+  cascade: deleteCascadeModeSchema.default(DeleteCascadeMode.SINGLE),
 });
 
 export const suggestionItemSchema = z.object({

@@ -8,31 +8,13 @@ import {
   listCategoriesQuerySchema,
 } from './categories.schemas.js';
 import { problemDetailsSchema } from '../auth/auth.schemas.js';
+import { authenticateRequest, getAuthenticatedUserId } from '../../shared/middlewares/authenticate.js';
 
 const categoriesService = new CategoriesService();
 
-function getUserId(request: any): number {
-  const user = request.user as { userId?: number; sub?: string } | undefined;
-  return user?.userId ? Number(user.userId) : Number(user?.sub);
-}
-
 export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
-  /* Hook de Autenticação JWT */
-  app.addHook('onRequest', async (request, reply) => {
-    try {
-      await request.jwtVerify();
-    } catch (err) {
-      return reply.status(401).send({
-        type: 'https://cofrinho.app/errors/unauthorized',
-        title: 'Não Autorizado',
-        status: 401,
-        detail: 'Token de autenticação ausente ou expirado.',
-        code: 'AUTH_001',
-        incidentId: 'incident_jwt_required',
-        timestamp: Date.now(),
-      });
-    }
-  });
+  /* Hook canônico de autenticação JWT + validação de sessão no Redis/PostgreSQL */
+  app.addHook('onRequest', authenticateRequest);
 
   /* 1. GET /v1/categories - Listar categorias */
   app.get(
@@ -49,7 +31,7 @@ export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
       },
     },
     async (request, reply) => {
-      const userId = getUserId(request);
+      const userId = getAuthenticatedUserId(request);
       const categories = await categoriesService.listCategories(
         userId,
         request.query.include_hidden
@@ -69,12 +51,13 @@ export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
         response: {
           201: categoryResponseSchema,
           400: problemDetailsSchema,
+          401: problemDetailsSchema,
           409: problemDetailsSchema,
         },
       },
     },
     async (request, reply) => {
-      const userId = getUserId(request);
+      const userId = getAuthenticatedUserId(request);
       const category = await categoriesService.createCategory(userId, request.body);
       return reply.status(201).send(category);
     }
@@ -91,13 +74,14 @@ export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
         body: updateCategoryBodySchema,
         response: {
           200: categoryResponseSchema,
+          401: problemDetailsSchema,
           404: problemDetailsSchema,
           409: problemDetailsSchema,
         },
       },
     },
     async (request, reply) => {
-      const userId = getUserId(request);
+      const userId = getAuthenticatedUserId(request);
       const updated = await categoriesService.updateCategory(
         userId,
         request.params.id,
@@ -117,12 +101,13 @@ export const categoriesRoutes: FastifyPluginAsyncZod = async (app) => {
         params: z.object({ id: z.coerce.number().int().positive() }),
         response: {
           204: z.null(),
+          401: problemDetailsSchema,
           404: problemDetailsSchema,
         },
       },
     },
     async (request, reply) => {
-      const userId = getUserId(request);
+      const userId = getAuthenticatedUserId(request);
       await categoriesService.deleteCategory(userId, request.params.id);
       return reply.status(204).send(null);
     }
