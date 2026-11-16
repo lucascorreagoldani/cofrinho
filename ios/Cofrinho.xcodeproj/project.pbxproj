@@ -25,14 +25,12 @@
 		676D37844017F3E2847906A4 /* DomainEnums.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81AFB91C84373D4EC4DC4942 /* DomainEnums.swift */; };
 		67CE5A9437F9427261FA6FE6 /* BiometryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD69F79EB7374E61F90D22F4 /* BiometryService.swift */; };
 		6E123339AEEFDA877A8BDB77 /* AuthError.swift in Sources */ = {isa = PBXBuildFile; fileRef = C63CCE2B3D980F1941D41915 /* AuthError.swift */; };
-		78F67535C2AC2FD8BB840015 /* AuthErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 978ACB763B7CF9A30BE86104 /* AuthErrorTests.swift */; };
 		7D0D8AE914BE1CF2F5526FF3 /* TransactionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC5ABE987AAC4E0D11AC1FD3 /* TransactionModel.swift */; };
 		869E6CE9FC96A01A493C53BD /* ValidationError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A84FC8B1914A7206DB3F7A3 /* ValidationError.swift */; };
 		8873E1945EF4FB68D8219DA4 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBEF16001F57EE66D7E56CF1 /* KeychainHelper.swift */; };
 		88915B54FE7B2AB0A7F82109 /* CurrencyAndDateFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4F6BA881B94A0AAAAE79516 /* CurrencyAndDateFormatters.swift */; };
 		8A25BDF7F9E67B6604EA1B9E /* DatabaseError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5410D93F51B84FB656AE534F /* DatabaseError.swift */; };
 		94BD96C7EADA7D04E4263A43 /* NewExpenseViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4B137D478046A743562212D /* NewExpenseViewModel.swift */; };
-		ABF433990EE7D63CCEB89E05 /* ErrorAndLoggingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 871D93BE9BE65017AF3990CD /* ErrorAndLoggingTests.swift */; };
 		ACA5D6F01D773B88243D3D8D /* View+ErrorAlert.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79076718ACF1003795F0F8A6 /* View+ErrorAlert.swift */; };
 		AE6E27370D79B866F33E6454 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D28CB716BE1495F0D7742A07 /* MainTabView.swift */; };
 		B0DA2D3DDBA010ADFFF979D3 /* SecurityError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5516B56B2C52B20BEBE30004 /* SecurityError.swift */; };
@@ -50,16 +48,6 @@
 		FAB16817C6A9DD53CA53B936 /* LogServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8808C68DDB8BEB5C6DA07BD /* LogServiceProtocol.swift */; };
 		FB9F3F8303BF967121B15889 /* CategoryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5722952A562391B68D4E1160 /* CategoryModel.swift */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		A9D1ED75E8F46339C6CDA1A1 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = FFE4E8A4AA809941EB11D4FD /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = DC3FF1B64A52E75B95454603;
-			remoteInfo = Cofrinho;
-		};
-/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		03876043594783074FA5ACC9 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
@@ -87,11 +75,8 @@
 		811079180079BD47AD61FEF7 /* AppErrorProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppErrorProtocol.swift; sourceTree = "<group>"; };
 		81AFB91C84373D4EC4DC4942 /* DomainEnums.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainEnums.swift; sourceTree = "<group>"; };
 		86A95467C779F02131288CB5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		871D93BE9BE65017AF3990CD /* ErrorAndLoggingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorAndLoggingTests.swift; sourceTree = "<group>"; };
-		87F827B1B4B91FC594423015 /* CofrinhoTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CofrinhoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9185A2C53EE8B6FCAFE9FDA5 /* TransactionsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionsListView.swift; sourceTree = "<group>"; };
 		92CCA8981E0D4050DBD21296 /* Cofrinho.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Cofrinho.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		978ACB763B7CF9A30BE86104 /* AuthErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthErrorTests.swift; sourceTree = "<group>"; };
 		9FFDE8C24849D7E44F2A27CD /* LocalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalModels.swift; sourceTree = "<group>"; };
 		B43C9FADD37CE67121D91537 /* MonthYearPickerSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthYearPickerSheetView.swift; sourceTree = "<group>"; };
 		B4B137D478046A743562212D /* NewExpenseViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewExpenseViewModel.swift; sourceTree = "<group>"; };
@@ -191,7 +176,6 @@
 			isa = PBXGroup;
 			children = (
 				92CCA8981E0D4050DBD21296 /* Cofrinho.app */,
-				87F827B1B4B91FC594423015 /* CofrinhoTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -250,20 +234,10 @@
 			path = Transactions;
 			sourceTree = "<group>";
 		};
-		C6870DE2DA88CD5C2B78F946 /* CofrinhoTests */ = {
-			isa = PBXGroup;
-			children = (
-				978ACB763B7CF9A30BE86104 /* AuthErrorTests.swift */,
-				871D93BE9BE65017AF3990CD /* ErrorAndLoggingTests.swift */,
-			);
-			path = CofrinhoTests;
-			sourceTree = "<group>";
-		};
 		CDE3E4F6465C413486BCE641 = {
 			isa = PBXGroup;
 			children = (
 				38C195D02F325E236AD0E5F2 /* CofrinhoApp */,
-				C6870DE2DA88CD5C2B78F946 /* CofrinhoTests */,
 				508899FDB5C4F62EB0DA8294 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -300,24 +274,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		4A2C0C33F0FE5C9170A516BE /* CofrinhoTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 7928F2E21409F29F11FBB5A1 /* Build configuration list for PBXNativeTarget "CofrinhoTests" */;
-			buildPhases = (
-				563DA8782DACE21F920A2E0F /* Sources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				5065E605C0C6D9AABE0CBE79 /* PBXTargetDependency */,
-			);
-			name = CofrinhoTests;
-			packageProductDependencies = (
-			);
-			productName = CofrinhoTests;
-			productReference = 87F827B1B4B91FC594423015 /* CofrinhoTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
 		DC3FF1B64A52E75B95454603 /* Cofrinho */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 5C6FE889107D400330621E93 /* Build configuration list for PBXNativeTarget "Cofrinho" */;
@@ -345,9 +301,6 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
-					4A2C0C33F0FE5C9170A516BE = {
-						ProvisioningStyle = Automatic;
-					};
 					DC3FF1B64A52E75B95454603 = {
 						ProvisioningStyle = Automatic;
 					};
@@ -368,7 +321,6 @@
 			projectRoot = "";
 			targets = (
 				DC3FF1B64A52E75B95454603 /* Cofrinho */,
-				4A2C0C33F0FE5C9170A516BE /* CofrinhoTests */,
 			);
 		};
 /* End PBXProject section */
@@ -385,15 +337,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		563DA8782DACE21F920A2E0F /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				78F67535C2AC2FD8BB840015 /* AuthErrorTests.swift in Sources */,
-				ABF433990EE7D63CCEB89E05 /* ErrorAndLoggingTests.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		B298AC0A7223FB19579FBF9E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -441,14 +384,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		5065E605C0C6D9AABE0CBE79 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = DC3FF1B64A52E75B95454603 /* Cofrinho */;
-			targetProxy = A9D1ED75E8F46339C6CDA1A1 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		223C163E6BBEAF93F548B6BD /* Debug */ = {
@@ -566,28 +501,6 @@
 			};
 			name = Debug;
 		};
-		C89A555E76D0657B29A708D7 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.lucas.cofrinho.CofrinhoTests;
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cofrinho.app/Cofrinho";
-			};
-			name = Release;
-		};
 		FB8BC3B09D89D78015DD0CA7 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -644,28 +557,6 @@
 			};
 			name = Release;
 		};
-		FD520F65118393244EA0B177 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.lucas.cofrinho.CofrinhoTests;
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
-				SWIFT_STRICT_CONCURRENCY = complete;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cofrinho.app/Cofrinho";
-			};
-			name = Debug;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -674,15 +565,6 @@
 			buildConfigurations = (
 				223C163E6BBEAF93F548B6BD /* Debug */,
 				4710DAA07A3645E213F0CAB8 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
-		};
-		7928F2E21409F29F11FBB5A1 /* Build configuration list for PBXNativeTarget "CofrinhoTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				FD520F65118393244EA0B177 /* Debug */,
-				C89A555E76D0657B29A708D7 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

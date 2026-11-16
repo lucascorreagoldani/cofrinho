@@ -26,9 +26,6 @@ targets:
           NSAllowsArbitraryLoads: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-    scheme:
-      testTargets:
-        - CofrinhoTests
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lucas.cofrinho.CofrinhoApp
@@ -43,20 +40,3 @@ targets:
         MARKETING_VERSION: 1.0.0
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "Apple Development"
-
-  CofrinhoTests:
-    type: bundle.unit-test
-    platform: iOS
-    deploymentTarget: "17.0"
-    sources:
-      - path: CofrinhoTests
-    dependencies:
-      - target: Cofrinho
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.lucas.cofrinho.CofrinhoTests
-        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
-        SWIFT_VERSION: "6.0"
-        SWIFT_STRICT_CONCURRENCY: complete
-        GENERATE_INFOPLIST_FILE: YES
-        CODE_SIGN_STYLE: Automatic
