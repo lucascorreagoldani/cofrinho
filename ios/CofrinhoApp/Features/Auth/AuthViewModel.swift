@@ -52,33 +52,42 @@ public final class AuthViewModel {
             return
         }
 
-        // CRÍTICO: Para que a sessão seja renovável e válida na VPS, é OBRIGATÓRIO ter o Refresh Token de 7 dias.
-        // Se NÃO temos o refresh token (ex: sessão expirada, antiga ou inconsistente), NUNCA solicita Face ID!
+        // CRÍTICO: Para que a sessão seja renovável e válida na VPS, é OBRIGATÓRIO ter um Refresh Token válido.
+        // Se NÃO temos o refresh token ou ele já expirou localmente, NUNCA solicita Face ID!
         // Limpa resquícios e exibe o formulário de login diretamente sem interrupções.
         guard let savedRefreshToken = KeychainHelper.shared.read(key: refreshTokenKey),
-              !savedRefreshToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            AppLogger.shared.info("Nenhuma sessão renovável encontrada. Exibindo tela de login diretamente (sem Face ID).", category: .security)
+              !savedRefreshToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !isJWTExpired(savedRefreshToken) else {
+            AppLogger.shared.info("Nenhuma sessão renovável válida encontrada. Exibindo tela de login diretamente (sem Face ID).", category: .security)
             performSilentLogout()
             return
         }
 
-        // Se temos o refresh token, a sessão é válida! Carrega o cache local para UX imediata
+        // Carrega cache local e preferências antes da validação
         if let cachedUser = loadUserFromCache() {
             self.currentUser = cachedUser
             self.currentPreferences = loadPrefsFromCache()
         }
 
         self.token = KeychainHelper.shared.read(key: tokenKey)
-        let isBiometryEnabled = UserDefaults.standard.bool(forKey: biometryPrefKey)
+        let localBiometryPref = UserDefaults.standard.bool(forKey: biometryPrefKey)
 
         Task {
+            // Passo 1: Valida ou renova a sessão na VPS ANTES de solicitar o Face ID,
+            // garantindo que o usuário nunca faça biometria com sessão expirada/revogada.
+            let hasValidSession = await prepareValidSession(savedRefreshToken: savedRefreshToken)
+            guard hasValidSession else {
+                return
+            }
+
+            let isBiometryEnabled = self.currentPreferences?.verification ?? localBiometryPref
             if isBiometryEnabled && BiometryService.shared.isBiometryAvailable {
                 do {
                     let authenticated = try await BiometryService.shared.authenticate(
                         reason: "Desbloqueie o Cofrinho para acessar suas finanças."
                     )
                     if authenticated {
-                        await validateOrRefreshSession()
+                        self.isAuthenticated = true
                     }
                 } catch let err as SecurityError {
                     self.activeError = err
@@ -86,7 +95,7 @@ public final class AuthViewModel {
                     self.activeError = SecurityError.authenticationFailed(reason: error.localizedDescription)
                 }
             } else {
-                await validateOrRefreshSession()
+                self.isAuthenticated = true
             }
         }
     }
@@ -128,11 +137,14 @@ public final class AuthViewModel {
                 UserDefaults.standard.set(false, forKey: fastLoginKey)
             }
 
-            // Busca preferências da nuvem
+            // Busca preferências da nuvem e sincroniza preferência local de biometria
             let prefs = try? await AuthAPIService.shared.getPreferences(token: response.token)
             self.currentPreferences = prefs
             if let prefs {
                 savePrefsToCache(prefs)
+                if keepLoggedIn {
+                    UserDefaults.standard.set(prefs.verification, forKey: biometryPrefKey)
+                }
             }
 
             AppLogger.shared.info("Usuário \(response.user.username) autenticado na VPS com sucesso", category: .security)
@@ -287,48 +299,45 @@ public final class AuthViewModel {
 
     // MARK: - Validação e Renovação Silenciosa de Sessão (Refresh Token)
 
-    private func validateOrRefreshSession() async {
-        guard let currentToken = token else {
-            await tryRefreshToken()
-            return
-        }
+    private func prepareValidSession(savedRefreshToken: String) async -> Bool {
+        // Se já sabemos localmente que o Access Token expirou, renova direto sem 401 desnecessário
+        if let currentToken = token, !currentToken.isEmpty, !isJWTExpired(currentToken) {
+            do {
+                let profile = try await AuthAPIService.shared.getProfile(token: currentToken)
+                let prefs = try? await AuthAPIService.shared.getPreferences(token: currentToken)
+                self.currentUser = profile
+                self.currentPreferences = prefs
 
-        do {
-            let profile = try await AuthAPIService.shared.getProfile(token: currentToken)
-            let prefs = try? await AuthAPIService.shared.getPreferences(token: currentToken)
-            self.currentUser = profile
-            self.currentPreferences = prefs
-            self.isAuthenticated = true
-
-            saveUserToCache(profile)
-            if let prefs { savePrefsToCache(prefs) }
-        } catch let appErr as AuthError where appErr.errorCode == "AUTH_001" || appErr.errorCode == "AUTH_009" {
-            // O access token expirou (15 minutos). Tenta renovar com o Refresh Token de 7 dias
-            AppLogger.shared.info("Access token expirado, renovando sessão via Refresh Token na VPS...", category: .security)
-            await tryRefreshToken()
-        } catch let netErr as NetworkError {
-            // Erro de conexão (offline, túnel etc): NUNCA desloga o usuário se tiver cache
-            AppLogger.shared.warning("Falha temporária de rede (\(netErr.localizedDescription)). Mantendo sessão ativa com cache local.", category: .network)
-            if self.currentUser != nil {
-                self.isAuthenticated = true
+                saveUserToCache(profile)
+                if let prefs {
+                    savePrefsToCache(prefs)
+                    UserDefaults.standard.set(prefs.verification, forKey: biometryPrefKey)
+                }
+                return true
+            } catch let appErr as AuthError where appErr.errorCode == "AUTH_001" || appErr.errorCode == "AUTH_009" {
+                AppLogger.shared.info("Access token expirado na VPS, renovando sessão via Refresh Token...", category: .security)
+                return await tryRefreshToken(using: savedRefreshToken)
+            } catch is NetworkError {
+                AppLogger.shared.warning("Falha temporária de rede. Mantendo sessão válida via cache offline.", category: .network)
+                return self.currentUser != nil
+            } catch {
+                AppLogger.shared.warning("Validação de sessão encontrou erro: \(error.localizedDescription). Tentando renovação.", category: .app)
+                return await tryRefreshToken(using: savedRefreshToken)
             }
-        } catch {
-            AppLogger.shared.warning("Validação de sessão encontrou erro: \(error.localizedDescription). Tentando renovação.", category: .app)
-            await tryRefreshToken()
+        } else {
+            AppLogger.shared.info("Access token ausente ou expirado, renovando sessão via Refresh Token na VPS...", category: .security)
+            return await tryRefreshToken(using: savedRefreshToken)
         }
     }
 
-    private func tryRefreshToken() async {
-        guard let savedRefreshToken = KeychainHelper.shared.read(key: refreshTokenKey) else {
-            AppLogger.shared.info("Nenhum refresh token encontrado. Requer novo login.", category: .security)
-            performSilentLogout()
-            return
-        }
-
+    private func tryRefreshToken(using savedRefreshToken: String) async -> Bool {
         do {
             let refreshResult = try await AuthAPIService.shared.refreshToken(refreshToken: savedRefreshToken)
             self.token = refreshResult.accessToken
             KeychainHelper.shared.save(key: tokenKey, value: refreshResult.accessToken)
+            if let rotatedRefresh = refreshResult.refreshToken, !rotatedRefresh.isEmpty {
+                KeychainHelper.shared.save(key: refreshTokenKey, value: rotatedRefresh)
+            }
             AppLogger.shared.info("Sessão renovada com sucesso na VPS via Refresh Token!", category: .security)
 
             // Obtém perfil atualizado com o novo token
@@ -336,21 +345,48 @@ public final class AuthViewModel {
             let prefs = try? await AuthAPIService.shared.getPreferences(token: refreshResult.accessToken)
             self.currentUser = profile
             self.currentPreferences = prefs
-            self.isAuthenticated = true
 
             saveUserToCache(profile)
-            if let prefs { savePrefsToCache(prefs) }
-        } catch let authErr as AuthError where authErr.errorCode == "AUTH_001" || authErr.errorCode == "AUTH_009" {
-            // A sessão de 7 dias expirou de fato ou foi revogada no servidor
-            AppLogger.shared.info("Sessão de 7 dias expirada na VPS. Solicitando novo login.", category: .security)
-            performSilentLogout()
-        } catch {
-            // Se houver falha de rede temporária durante o refresh, não desconecta o usuário
-            AppLogger.shared.warning("Falha de conexão com a VPS durante renovação de token. Mantendo autenticação offline.", category: .network)
-            if self.currentUser != nil {
-                self.isAuthenticated = true
+            if let prefs {
+                savePrefsToCache(prefs)
+                UserDefaults.standard.set(prefs.verification, forKey: biometryPrefKey)
             }
+            return true
+        } catch let authErr as AuthError where authErr.errorCode == "AUTH_001" || authErr.errorCode == "AUTH_009" {
+            AppLogger.shared.info("Sessão expirada ou revogada na VPS. Solicitando novo login sem Face ID.", category: .security)
+            performSilentLogout()
+            return false
+        } catch is NetworkError {
+            AppLogger.shared.warning("Falha de conexão com a VPS durante renovação de token. Mantendo sessão offline.", category: .network)
+            return self.currentUser != nil
+        } catch {
+            AppLogger.shared.warning("Erro ao renovar sessão: \(error.localizedDescription)", category: .network)
+            performSilentLogout()
+            return false
         }
+    }
+
+    /// Decodifica o payload do JWT localmente para checar o claim `exp` antes de solicitações ou Face ID.
+    private func isJWTExpired(_ jwt: String) -> Bool {
+        let segments = jwt.split(separator: ".")
+        guard segments.count >= 2 else { return false }
+
+        var base64 = String(segments[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+
+        let padding = (4 - base64.count % 4) % 4
+        if padding > 0 {
+            base64.append(String(repeating: "=", count: padding))
+        }
+
+        guard let data = Data(base64Encoded: base64),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let exp = json["exp"] as? TimeInterval else {
+            return false
+        }
+
+        return Date().timeIntervalSince1970 >= (exp - 5)
     }
 
     private func performSilentLogout() {

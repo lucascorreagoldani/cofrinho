@@ -139,8 +139,8 @@ export class AuthService {
       const nowTimestamp = Date.now();
       const isFirstLogin = !user.first_login;
 
-      /* TTL da sessão: 7 dias se fast_login, 24 horas caso contrário */
-      const sessionDurationHours = data.fast_login ? 24 * 7 : 24;
+      /* TTL da sessão: 30 dias se fast_login ("Manter Logado"), 24 horas caso contrário */
+      const sessionDurationHours = data.fast_login ? 24 * 30 : 24;
       const expiresAt = nowTimestamp + sessionDurationHours * 3600 * 1000;
 
       /* 4. Cria sessão na tabela users_sessions com timestamps numéricos */
@@ -272,5 +272,57 @@ export class AuthService {
     );
 
     return result.rows.length > 0;
+  }
+
+  /**
+   * Valida e renova a janela deslizante (sliding expiration) da sessão no PostgreSQL e no Redis.
+   * Mantém o usuário conectado por mais 30 dias (ou 24h) a cada renovação bem-sucedida.
+   */
+  async extendSession(sessionId: string): Promise<{ valid: boolean; durationHours: number }> {
+    const now = Date.now();
+    const sessionRes = await dbPool.query(
+      `SELECT s.id, s.user_id, s.login_time, s.ip, COALESCE(p.fast_login, true) AS fast_login, u.username
+       FROM users_sessions s
+       JOIN users u ON u.id = s.user_id
+       LEFT JOIN users_preferences p ON p.user_id = s.user_id
+       WHERE s.id = $1 AND s.status = 'active' AND s.expires_at > $2`,
+      [sessionId, now]
+    );
+
+    if (sessionRes.rows.length === 0) {
+      try {
+        await redis.del(`cofrinho:session:${sessionId}`);
+      } catch {
+        /* Redis fallback */
+      }
+      return { valid: false, durationHours: 0 };
+    }
+
+    const row = sessionRes.rows[0];
+    const fastLogin = Boolean(row.fast_login);
+    const durationHours = fastLogin ? 24 * 30 : 24;
+    const newExpiresAt = now + durationHours * 3600 * 1000;
+
+    await dbPool.query(
+      `UPDATE users_sessions SET expires_at = $1 WHERE id = $2`,
+      [newExpiresAt, sessionId]
+    );
+
+    try {
+      const sessionPayload = JSON.stringify({
+        userId: Number(row.user_id),
+        username: row.username,
+        sessionId,
+        ip: row.ip,
+        fastLogin,
+        expiresAt: newExpiresAt,
+        loginTime: Number(row.login_time),
+      });
+      await redis.set(`cofrinho:session:${sessionId}`, sessionPayload, 'EX', durationHours * 3600);
+    } catch {
+      /* Falha no Redis não bloqueia renovação no PostgreSQL */
+    }
+
+    return { valid: true, durationHours };
   }
 }

@@ -124,12 +124,13 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       schema: {
         tags: ['Autenticação'],
-        summary: 'Renovar Access Token via Refresh Token',
-        description: 'Emite um novo access token após validar que a sessão ainda está ativa no Redis/Postgres.',
+        summary: 'Renovar Access Token e estender sessão via Refresh Token',
+        description: 'Emite um novo access token e renova o prazo da sessão ativa no Redis/PostgreSQL.',
         body: refreshBodySchema,
         response: {
           200: z.object({
             access_token: z.string(),
+            refresh_token: z.string().optional(),
             token_type: z.literal('Bearer'),
             expires_in: z.number().int(),
           }),
@@ -147,22 +148,34 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
           throw new UnauthorizedError('O token fornecido não é um refresh token.');
         }
 
-        const isValid = await authService.validateSession(decoded.sessionId);
-        if (!isValid) {
+        const { valid, durationHours } = await authService.extendSession(decoded.sessionId);
+        if (!valid) {
           throw new UnauthorizedError('Esta sessão foi revogada ou expirou.');
         }
 
+        const numericUserId = Number(decoded.sub);
         const newAccessToken = app.jwt.sign(
           {
             sub: decoded.sub,
-            userId: Number(decoded.sub),
+            userId: numericUserId,
             sessionId: decoded.sessionId,
           },
           { expiresIn: '15m' }
         );
 
+        const newRefreshToken = app.jwt.sign(
+          {
+            sub: decoded.sub,
+            userId: numericUserId,
+            sessionId: decoded.sessionId,
+            type: 'refresh',
+          },
+          { expiresIn: `${durationHours}h` }
+        );
+
         return reply.status(200).send({
           access_token: newAccessToken,
+          refresh_token: newRefreshToken,
           token_type: 'Bearer',
           expires_in: 15 * 60,
         });

@@ -104,34 +104,9 @@ public struct NewExpenseView: View {
                         }
                     }
 
-                    // LINHA 2: Data, Categoria (+ nova) e Conta (+ nova)
-                    HStack(alignment: .top, spacing: 10) {
-                        // Coluna 1: Data
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 4) {
-                                Text("📅")
-                                    .font(.caption2)
-                                Text("Data")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            DatePicker(
-                                "",
-                                selection: $viewModel.selectedDate,
-                                displayedComponents: [.date]
-                            )
-                            .labelsHidden()
-                            .datePickerStyle(.compact)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 4)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(.secondarySystemBackground))
-                            .clipShape(.rect(cornerRadius: 10))
-                        }
-                        .frame(maxWidth: .infinity)
-
-                        // Coluna 2: Categoria (+ nova)
+                    // LINHA 2: Categoria (+ nova) e Conta (+ nova) em duas colunas espaçosas
+                    HStack(alignment: .top, spacing: 12) {
+                        // Coluna 1: Categoria (+ nova)
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 HStack(spacing: 4) {
@@ -178,15 +153,16 @@ public struct NewExpenseView: View {
                                 }
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 10)
-                                .frame(height: 38)
+                                .frame(minWidth: 0, maxWidth: .infinity)
+                                .frame(height: 40)
                                 .background(Color(.secondarySystemBackground))
                                 .clipShape(.rect(cornerRadius: 10))
                             }
                             .buttonStyle(.plain)
                         }
-                        .frame(maxWidth: .infinity)
+                        .frame(minWidth: 0, maxWidth: .infinity)
 
-                        // Coluna 3: Conta (+ nova)
+                        // Coluna 2: Conta (+ nova)
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 HStack(spacing: 4) {
@@ -236,14 +212,40 @@ public struct NewExpenseView: View {
                                 }
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 10)
-                                .frame(height: 38)
+                                .frame(minWidth: 0, maxWidth: .infinity)
+                                .frame(height: 40)
                                 .background(Color(.secondarySystemBackground))
                                 .clipShape(.rect(cornerRadius: 10))
                             }
                             .buttonStyle(.plain)
                         }
-                        .frame(maxWidth: .infinity)
+                        .frame(minWidth: 0, maxWidth: .infinity)
                     }
+
+                    // LINHA 3: Data do Gasto com DatePicker em tamanho intrínseco (evita restrições negativas de layout)
+                    HStack(spacing: 10) {
+                        HStack(spacing: 6) {
+                            Text("📅")
+                                .font(.subheadline)
+                            Text("Data do Gasto")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        DatePicker(
+                            "",
+                            selection: $viewModel.selectedDate,
+                            displayedComponents: [.date]
+                        )
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(.rect(cornerRadius: 10))
 
                     // LINHA 3: Seção de Parcelamento (Ativa dinamicamente se a conta permitir)
                     if let account = viewModel.selectedAccount, account.allowsInstallments {

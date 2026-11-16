@@ -9,7 +9,9 @@ public struct TransactionsListView: View {
     @State private var transactions: [TransactionModel] = []
     @State private var isLoading: Bool = false
     @State private var isLoadingMore: Bool = false
-    @State private var canLoadMore: Bool = true
+    @State private var isFetchingNetwork: Bool = false
+    @State private var activeFetchToken: UUID = UUID()
+    @State private var canLoadMore: Bool = false
     @State private var currentPage: Int = 1
     private let pageSize: Int = 30
 
@@ -736,18 +738,30 @@ public struct TransactionsListView: View {
     }
 
     private func loadTransactions(reset: Bool = true) async {
+        let fetchToken = UUID()
+        activeFetchToken = fetchToken
+        let pageToFetch = reset ? 1 : currentPage
+
         if reset {
             currentPage = 1
-            canLoadMore = true
+            // Mantém canLoadMore desativado durante o carregamento para impedir disparo prematuro de página 2
+            canLoadMore = false
             // 1. Carrega instantaneamente o cache local do SwiftData para 0 delay na UI
             loadTransactionsFromLocalCache()
         }
 
         isLoading = reset && transactions.isEmpty
-        defer { isLoading = false }
+        isFetchingNetwork = true
+        defer {
+            if activeFetchToken == fetchToken {
+                isLoading = false
+                isFetchingNetwork = false
+            }
+        }
 
         // 2. Sincroniza em segundo plano todas as operações offline pendentes (create/update/delete)
         await LocalDataManager.shared.syncPendingTransactions(token: token)
+        guard activeFetchToken == fetchToken else { return }
 
         do {
             let fetched = try await TransactionsAPIService.shared.listTransactions(
@@ -757,13 +771,13 @@ public struct TransactionsListView: View {
                 categoryId: selectedCategoryId,
                 accountId: selectedAccountId,
                 status: filterStatus,
-                page: currentPage,
+                page: pageToFetch,
                 limit: pageSize
             )
 
-            if fetched.count < pageSize {
-                canLoadMore = false
-            }
+            guard activeFetchToken == fetchToken else { return }
+
+            canLoadMore = fetched.count >= pageSize
 
             if reset {
                 transactions = fetched
@@ -774,6 +788,7 @@ public struct TransactionsListView: View {
             LocalDataManager.shared.cacheTransactions(fetched)
             AppLogger.shared.info("Extrato atualizado (\(transactions.count) transações, status: \(filterStatus.rawValue)).", category: .business)
         } catch let err as any AppErrorProtocol {
+            guard activeFetchToken == fetchToken else { return }
             // Se offline e temos dados em cache ou fallback offline, opera silenciosamente
             if isConnectionError(err) {
                 loadTransactionsFromLocalCache()
@@ -783,6 +798,7 @@ public struct TransactionsListView: View {
                 AppLogger.shared.error("Erro ao carregar extrato: \(err.errorDescription ?? err.localizedDescription)", category: .network)
             }
         } catch {
+            guard activeFetchToken == fetchToken else { return }
             let unk = NetworkError.unknown(reason: error.localizedDescription)
             self.activeError = unk
             AppLogger.shared.error("Erro ao carregar extrato: \(error.localizedDescription)", category: .network)
@@ -792,36 +808,46 @@ public struct TransactionsListView: View {
     private func loadMoreIfNeeded(currentItem: TransactionModel) {
         guard let lastItem = transactions.last,
               lastItem.id == currentItem.id,
+              transactions.count >= pageSize,
               canLoadMore,
               !isLoading,
-              !isLoadingMore else {
+              !isLoadingMore,
+              !isFetchingNetwork else {
             return
         }
 
         isLoadingMore = true
-        currentPage += 1
+        let nextPage = currentPage + 1
+        currentPage = nextPage
+        let expectedMonth = selectedMonth
+        let expectedYear = selectedYear
+        let expectedToken = activeFetchToken
 
         Task {
             defer { isLoadingMore = false }
             do {
                 let fetched = try await TransactionsAPIService.shared.listTransactions(
                     token: token,
-                    month: selectedMonth,
-                    year: selectedYear,
+                    month: expectedMonth,
+                    year: expectedYear,
                     categoryId: selectedCategoryId,
                     accountId: selectedAccountId,
                     status: filterStatus,
-                    page: currentPage,
+                    page: nextPage,
                     limit: pageSize
                 )
 
-                if fetched.count < pageSize {
-                    canLoadMore = false
+                guard activeFetchToken == expectedToken,
+                      selectedMonth == expectedMonth,
+                      selectedYear == expectedYear else {
+                    return
                 }
+
+                canLoadMore = fetched.count >= pageSize
 
                 transactions.append(contentsOf: fetched)
                 LocalDataManager.shared.cacheTransactions(fetched)
-                AppLogger.shared.info("Página \(currentPage) carregada com +\(fetched.count) gastos.", category: .business)
+                AppLogger.shared.info("Página \(nextPage) carregada com +\(fetched.count) gastos.", category: .business)
             } catch {
                 canLoadMore = false
             }
