@@ -20,6 +20,7 @@ public struct TransactionsListView: View {
     @State private var selectedMonth: Int = Calendar.current.component(.month, from: Date())
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
     @State private var selectedDay: Int? = nil
+    @State private var lastSwipeTimestamp: TimeInterval = 0
     @State private var selectedAccountId: Int? = nil
     @State private var selectedCategoryId: Int? = nil
     @State private var filterStatus: TransactionFilterStatus = .active
@@ -173,11 +174,10 @@ public struct TransactionsListView: View {
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                             .contentShape(Rectangle())
-                            .gesture(horizontalDaySwipeGesture)
                         }
                     }
                     .listStyle(.insetGrouped)
-                    .simultaneousGesture(rightwardBackDaySwipeGesture)
+                    .simultaneousGesture(horizontalDaySwipeGesture)
                     .refreshable {
                         await loadTransactions(reset: true)
                     }
@@ -771,17 +771,20 @@ public struct TransactionsListView: View {
         return "\(monthName) \(selectedYear)"
     }
 
-    /// Navegação inteligente por dia estritamente dentro dos dias com lançamentos do mês atual:
-    /// - Evita trocar de mês ou disparar requisições de rede durante o deslize entre datas.
-    /// - Alterna suavemente entre os dias com gastos e a visão "Mês Inteiro".
+    /// Navegação inteligente por dia estritamente dentro dos chips do mês atual (`Mês Inteiro <-> Dias com Gastos`):
+    /// - Debounce de 0.25s impede que um único arrasto execute dois saltos seguidos.
+    /// - Avançar (> 0): Mês Inteiro -> 1º dia com lançamento -> próximos dias -> Mês Inteiro.
+    /// - Voltar (< 0): Mês Inteiro -> último dia com lançamento -> dias anteriores -> Mês Inteiro.
     private func navigateDaySmart(direction: Int) {
+        let now = Date().timeIntervalSinceReferenceDate
+        guard now - lastSwipeTimestamp > 0.25 else { return }
+        lastSwipeTimestamp = now
+
         let sortedDays = availableTransactionDays
         guard !sortedDays.isEmpty else { return }
 
         let haptic = UIImpactFeedbackGenerator(style: .light)
         haptic.impactOccurred()
-
-        let currentCalendarDay = Calendar.current.component(.day, from: Date())
 
         withAnimation(.easeInOut(duration: 0.22)) {
             if let currentDay = selectedDay {
@@ -792,11 +795,9 @@ public struct TransactionsListView: View {
                 }
             } else {
                 if direction > 0 {
-                    let refDay = isCurrentMonthAndYear ? currentCalendarDay : 0
-                    selectedDay = sortedDays.first(where: { $0 > refDay }) ?? sortedDays.first
+                    selectedDay = sortedDays.first
                 } else {
-                    let refDay = isCurrentMonthAndYear ? currentCalendarDay : 32
-                    selectedDay = sortedDays.last(where: { $0 < refDay }) ?? sortedDays.last
+                    selectedDay = sortedDays.last
                 }
             }
         }
@@ -857,11 +858,11 @@ public struct TransactionsListView: View {
 
     /// Gesto horizontal bidirecional altamente responsivo para navegação inteligente entre dias com lançamentos.
     private var horizontalDaySwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 20, coordinateSpace: .local)
+        DragGesture(minimumDistance: 24, coordinateSpace: .local)
             .onEnded { value in
                 let horizontal = value.translation.width
                 let vertical = value.translation.height
-                guard abs(horizontal) > abs(vertical) * 1.15 && abs(horizontal) > 38 else {
+                guard abs(horizontal) > abs(vertical) * 1.25 && abs(horizontal) > 45 else {
                     return
                 }
                 if horizontal < 0 {
@@ -869,20 +870,6 @@ public struct TransactionsListView: View {
                 } else {
                     navigateDaySmart(direction: -1)
                 }
-            }
-    }
-
-    /// Gesto simultâneo aplicado sobre a List especificamente para arrasto para a direita (voltar dia),
-    /// garantindo fluidez em 100% da tela sem entrar em conflito com swipeActions de exclusão à esquerda nas linhas.
-    private var rightwardBackDaySwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 24, coordinateSpace: .local)
-            .onEnded { value in
-                let horizontal = value.translation.width
-                let vertical = value.translation.height
-                guard horizontal > 45 && abs(horizontal) > abs(vertical) * 1.25 else {
-                    return
-                }
-                navigateDaySmart(direction: -1)
             }
     }
 

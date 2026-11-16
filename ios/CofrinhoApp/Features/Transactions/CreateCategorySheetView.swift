@@ -10,6 +10,7 @@ public struct CreateCategorySheetView: View {
     @State private var selectedColorHex: String = "#FF9500"
     @State private var isSubmitting: Bool = false
     @State private var activeError: (any AppErrorProtocol)?
+    @FocusState private var isNameFocused: Bool
 
     private let availableIcons = [
         "cart.fill", "fork.knife", "car.fill", "house.fill",
@@ -56,6 +57,12 @@ public struct CreateCategorySheetView: View {
                             .foregroundStyle(.secondary)
 
                         TextField("Ex: Lanches, Academia, Assinaturas", text: $name)
+                            .focused($isNameFocused)
+                            .autocorrectionDisabled(true)
+                            .submitLabel(.done)
+                            .onSubmit {
+                                isNameFocused = false
+                            }
                             .padding()
                             .background(Color(.secondarySystemBackground))
                             .clipShape(.rect(cornerRadius: 12))
@@ -148,9 +155,18 @@ public struct CreateCategorySheetView: View {
             }
             .navigationTitle("Nova Categoria")
             .navigationBarTitleDisplayMode(.inline)
+            .scrollDismissesKeyboard(.interactively)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancelar") { dismiss() }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("OK") {
+                        isNameFocused = false
+                    }
+                    .font(.headline.bold())
+                    .foregroundStyle(Color.blue)
                 }
             }
             .handleAnyAppError($activeError)

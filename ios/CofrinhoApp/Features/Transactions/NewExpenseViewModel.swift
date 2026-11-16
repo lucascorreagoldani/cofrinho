@@ -161,13 +161,16 @@ public final class NewExpenseViewModel {
     // MARK: - Autocomplete & Sugestões
     private func filterSuggestions() {
         let query = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let newFiltered: [SuggestionItemDTO]
         if query.isEmpty {
-            filteredSuggestions = allSuggestions
+            newFiltered = allSuggestions
         } else {
-            filteredSuggestions = allSuggestions.filter {
+            newFiltered = allSuggestions.filter {
                 $0.description.lowercased().contains(query)
             }
         }
+        guard filteredSuggestions != newFiltered else { return }
+        filteredSuggestions = newFiltered
     }
 
     public func applySuggestion(_ suggestion: SuggestionItemDTO) {

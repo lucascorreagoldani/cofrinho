@@ -69,7 +69,7 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
           username: result.user.username,
           sessionId: result.session.id,
         },
-        { expiresIn: '15m' }
+        { expiresIn: '24h' }
       );
 
       /* Gera Refresh Token (JWT com tempo de expiração da sessão) */
@@ -87,7 +87,7 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
         access_token: accessToken,
         refresh_token: refreshToken,
         token_type: 'Bearer',
-        expires_in: 15 * 60, /* 15 minutos em segundos */
+        expires_in: 24 * 3600, /* 24 horas em segundos */
         user: result.user,
         session: result.session,
       });
@@ -160,7 +160,7 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
             userId: numericUserId,
             sessionId: decoded.sessionId,
           },
-          { expiresIn: '15m' }
+          { expiresIn: '24h' }
         );
 
         const newRefreshToken = app.jwt.sign(
@@ -177,7 +177,7 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
           access_token: newAccessToken,
           refresh_token: newRefreshToken,
           token_type: 'Bearer',
-          expires_in: 15 * 60,
+          expires_in: 24 * 3600,
         });
       } catch (err) {
         if (err instanceof UnauthorizedError) {

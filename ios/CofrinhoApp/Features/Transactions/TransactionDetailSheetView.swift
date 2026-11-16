@@ -17,6 +17,7 @@ public struct TransactionDetailSheetView: View {
     @State private var draftNotes: String = ""
     @State private var isSavingNotes: Bool = false
     @State private var activeError: (any AppErrorProtocol)?
+    @FocusState private var isNotesFocused: Bool
 
     public init(
         transaction: TransactionModel,
@@ -45,6 +46,7 @@ public struct TransactionDetailSheetView: View {
                 .padding(16)
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Detalhes do Gasto")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -52,6 +54,14 @@ public struct TransactionDetailSheetView: View {
                     Button("Fechar") {
                         dismiss()
                     }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("OK") {
+                        isNotesFocused = false
+                    }
+                    .font(.headline.bold())
+                    .foregroundStyle(Color.blue)
                 }
             }
             .task {
@@ -224,8 +234,13 @@ public struct TransactionDetailSheetView: View {
 
             if isEditingNotes {
                 VStack(alignment: .leading, spacing: 10) {
-                    TextField("Digite uma observação opcional sobre este lançamento...", text: $draftNotes, axis: .vertical)
-                        .lineLimit(2...5)
+                    TextField("Digite uma observação opcional sobre este lançamento...", text: $draftNotes)
+                        .focused($isNotesFocused)
+                        .autocorrectionDisabled(true)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            isNotesFocused = false
+                        }
                         .padding(10)
                         .background(Color(.secondarySystemBackground))
                         .clipShape(.rect(cornerRadius: 10))

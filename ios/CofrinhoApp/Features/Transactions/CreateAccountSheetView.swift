@@ -13,6 +13,7 @@ public struct CreateAccountSheetView: View {
     @State private var dueDay: Int = 27
     @State private var isSubmitting: Bool = false
     @State private var activeError: (any AppErrorProtocol)?
+    @FocusState private var isNameFocused: Bool
 
     private let availableColors = [
         "#0A84FF", "#5E5CE6", "#FF9F0A", "#30D158",
@@ -35,6 +36,12 @@ public struct CreateAccountSheetView: View {
                             .foregroundStyle(.secondary)
 
                         TextField("Ex: Nubank Mastercard, PIX C6 Bank, Dinheiro", text: $name)
+                            .focused($isNameFocused)
+                            .autocorrectionDisabled(true)
+                            .submitLabel(.done)
+                            .onSubmit {
+                                isNameFocused = false
+                            }
                             .padding()
                             .background(Color(.secondarySystemBackground))
                             .clipShape(.rect(cornerRadius: 12))
@@ -170,9 +177,18 @@ public struct CreateAccountSheetView: View {
             }
             .navigationTitle("Nova Conta")
             .navigationBarTitleDisplayMode(.inline)
+            .scrollDismissesKeyboard(.interactively)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancelar") { dismiss() }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("OK") {
+                        isNameFocused = false
+                    }
+                    .font(.headline.bold())
+                    .foregroundStyle(Color.blue)
                 }
             }
             .handleAnyAppError($activeError)

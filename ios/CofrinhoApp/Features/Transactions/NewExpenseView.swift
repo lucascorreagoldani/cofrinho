@@ -3,12 +3,16 @@ import SwiftUI
 /// Tela e Componente principal para Cadastro de Novo Gasto no Cofrinho.
 /// Desenvolvida estritamente segundo os mockups canônicos e padrões nativos iOS 17+.
 public struct NewExpenseView: View {
+    private enum FormField: Int, CaseIterable, Hashable {
+        case description = 0
+        case amount = 1
+        case notes = 2
+    }
+
     @State private var viewModel = NewExpenseViewModel()
     let token: String
 
-    @FocusState private var isAmountFocused: Bool
-    @FocusState private var isDescriptionFocused: Bool
-    @FocusState private var isNotesFocused: Bool
+    @FocusState private var focusedField: FormField?
 
     public init(token: String) {
         self.token = token
@@ -40,14 +44,20 @@ public struct NewExpenseView: View {
                                 .foregroundStyle(.secondary)
 
                             TextField("Ex: Supermercado, Aluguel, Netflix...", text: $viewModel.descriptionText)
-                                .focused($isDescriptionFocused)
+                                .focused($focusedField, equals: .description)
+                                .autocorrectionDisabled(true)
+                                .textInputAutocapitalization(.sentences)
+                                .submitLabel(.next)
+                                .onSubmit {
+                                    focusedField = .amount
+                                }
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 12)
                                 .background(Color(.secondarySystemBackground))
                                 .clipShape(.rect(cornerRadius: 10))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 10)
-                                        .stroke(isDescriptionFocused ? Color.blue : Color.clear, lineWidth: 1.5)
+                                        .stroke(focusedField == .description ? Color.blue : Color.clear, lineWidth: 1.5)
                                 )
                         }
                         .frame(maxWidth: .infinity)
@@ -59,7 +69,7 @@ public struct NewExpenseView: View {
                                 .foregroundStyle(.secondary)
 
                             TextField("R$ 0,00", text: $viewModel.amountInputString)
-                                .focused($isAmountFocused)
+                                .focused($focusedField, equals: .amount)
                                 .keyboardType(.numberPad)
                                 .autocorrectionDisabled(true)
                                 .textInputAutocapitalization(.never)
@@ -70,7 +80,7 @@ public struct NewExpenseView: View {
                                 .clipShape(.rect(cornerRadius: 10))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 10)
-                                        .stroke(isAmountFocused ? Color.blue : Color.clear, lineWidth: 1.5)
+                                        .stroke(focusedField == .amount ? Color.blue : Color.clear, lineWidth: 1.5)
                                 )
                                 .onChange(of: viewModel.amountInputString) { _, newValue in
                                     viewModel.updateAmountFromDigits(newValue)
@@ -260,16 +270,21 @@ public struct NewExpenseView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        TextField("Ex: Comprado na promoção, dividir com...", text: $viewModel.notesText, axis: .vertical)
-                            .lineLimit(1...3)
-                            .focused($isNotesFocused)
+                        TextField("Ex: Comprado na promoção, dividir com...", text: $viewModel.notesText)
+                            .focused($focusedField, equals: .notes)
+                            .autocorrectionDisabled(true)
+                            .textInputAutocapitalization(.sentences)
+                            .submitLabel(.done)
+                            .onSubmit {
+                                focusedField = nil
+                            }
                             .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
+                            .padding(.vertical, 12)
                             .background(Color(.secondarySystemBackground))
                             .clipShape(.rect(cornerRadius: 10))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 10)
-                                    .stroke(isNotesFocused ? Color.blue : Color.clear, lineWidth: 1.5)
+                                    .stroke(focusedField == .notes ? Color.blue : Color.clear, lineWidth: 1.5)
                             )
                     }
 
@@ -339,9 +354,7 @@ public struct NewExpenseView: View {
                         let haptic = UIImpactFeedbackGenerator(style: .medium)
                         haptic.impactOccurred()
 
-                        isAmountFocused = false
-                        isDescriptionFocused = false
-                        isNotesFocused = false
+                        focusedField = nil
 
                         Task {
                             _ = await viewModel.saveTransaction(token: token)
@@ -378,8 +391,42 @@ public struct NewExpenseView: View {
             .padding(.vertical)
         }
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .scrollDismissesKeyboard(.interactively)
         .navigationTitle("Novo Gasto")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Button {
+                    moveFocus(by: -1)
+                } label: {
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 16, weight: .semibold))
+                }
+                .disabled(!canMoveFocus(by: -1))
+
+                Button {
+                    moveFocus(by: 1)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 16, weight: .semibold))
+                        if canMoveFocus(by: 1) {
+                            Text("Próximo")
+                                .font(.subheadline.weight(.medium))
+                        }
+                    }
+                }
+                .disabled(!canMoveFocus(by: 1))
+
+                Spacer()
+
+                Button("OK") {
+                    focusedField = nil
+                }
+                .font(.headline.bold())
+                .foregroundStyle(Color.blue)
+            }
+        }
         .task {
             await viewModel.loadInitialData(token: token)
         }
@@ -395,6 +442,21 @@ public struct NewExpenseView: View {
             Text(viewModel.successFeedback ?? "Gasto registrado com sucesso.")
         }
         .handleAnyAppError($viewModel.activeError)
+    }
+
+    private func canMoveFocus(by offset: Int) -> Bool {
+        guard let current = focusedField,
+              let index = FormField.allCases.firstIndex(of: current) else { return false }
+        let target = index + offset
+        return FormField.allCases.indices.contains(target)
+    }
+
+    private func moveFocus(by offset: Int) {
+        guard let current = focusedField,
+              let index = FormField.allCases.firstIndex(of: current) else { return }
+        let target = index + offset
+        guard FormField.allCases.indices.contains(target) else { return }
+        focusedField = FormField.allCases[target]
     }
 }
 
