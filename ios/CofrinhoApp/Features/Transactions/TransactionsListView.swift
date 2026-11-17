@@ -27,6 +27,8 @@ public struct TransactionsListView: View {
 
     // Estados de Sheets e Detalhes
     @State private var showNewExpenseSheet: Bool = false
+    @State private var newExpenseInitialDate: Date = Date()
+    @State private var newExpenseSheetSessionId: UUID = UUID()
     @State private var showFilterSheet: Bool = false
     @State private var showMonthYearPicker: Bool = false
     @State private var selectedTransactionForDetail: TransactionModel? = nil
@@ -65,6 +67,28 @@ public struct TransactionsListView: View {
 
     private var isViewingToday: Bool {
         isCurrentMonthAndYear && selectedDay == todayDay
+    }
+
+    private var currentlyViewedDate: Date {
+        let calendar = Calendar.current
+        let now = Date()
+
+        var baseComponents = DateComponents()
+        baseComponents.year = selectedYear
+        baseComponents.month = selectedMonth
+        baseComponents.day = 1
+
+        let monthAnchor = calendar.date(from: baseComponents) ?? now
+        let maxDayInMonth = calendar.range(of: .day, in: .month, for: monthAnchor)?.count ?? 28
+        let fallbackDay = isCurrentMonthAndYear ? calendar.component(.day, from: now) : 1
+        let targetDay = min(max(selectedDay ?? fallbackDay, 1), maxDayInMonth)
+
+        var resolvedComponents = calendar.dateComponents([.hour, .minute, .second], from: now)
+        resolvedComponents.year = selectedYear
+        resolvedComponents.month = selectedMonth
+        resolvedComponents.day = targetDay
+
+        return calendar.date(from: resolvedComponents) ?? now
     }
 
     private var availableTransactionDays: [Int] {
@@ -238,6 +262,8 @@ public struct TransactionsListView: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        newExpenseInitialDate = Date()
+                        newExpenseSheetSessionId = UUID()
                         showNewExpenseSheet = true
                     } label: {
                         Image(systemName: "plus.circle.fill")
@@ -247,19 +273,30 @@ public struct TransactionsListView: View {
                 }
             }
             // MARK: - Sheet Novo Gasto
-            .sheet(isPresented: $showNewExpenseSheet) {
+            .sheet(
+                isPresented: $showNewExpenseSheet,
+                onDismiss: {
+                    Task {
+                        await loadTransactions(reset: true)
+                    }
+                }
+            ) {
                 NavigationStack {
-                    NewExpenseView(token: token)
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) {
-                                Button("Fechar") {
-                                    showNewExpenseSheet = false
-                                    Task {
-                                        await loadTransactions(reset: true)
-                                    }
-                                }
+                    NewExpenseView(
+                        token: token,
+                        initialDate: newExpenseInitialDate,
+                        onSaved: {
+                            showNewExpenseSheet = false
+                        }
+                    )
+                    .id(newExpenseSheetSessionId)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Fechar") {
+                                showNewExpenseSheet = false
                             }
                         }
+                    }
                 }
             }
             // MARK: - Sheet de Detalhes do Lançamento e Parcelamento
@@ -794,6 +831,8 @@ public struct TransactionsListView: View {
                 }
             } else {
                 Button {
+                    newExpenseInitialDate = currentlyViewedDate
+                    newExpenseSheetSessionId = UUID()
                     showNewExpenseSheet = true
                 } label: {
                     Text("+ Adicionar Gasto")

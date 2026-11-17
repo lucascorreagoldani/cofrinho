@@ -40,8 +40,12 @@ public final class NewExpenseViewModel {
     private let categoriesAPI = CategoriesAPIService.shared
     private let accountsAPI = AccountsAPIService.shared
     private let transactionsAPI = TransactionsAPIService.shared
+    private let initialDate: Date?
 
-    public init() {}
+    public init(initialDate: Date? = nil) {
+        self.initialDate = initialDate
+        self.selectedDate = initialDate ?? Date()
+    }
 
     // MARK: - Formatação Monetária
     public func updateAmountFromDigits(_ input: String) {
@@ -317,7 +321,7 @@ public final class NewExpenseViewModel {
         notesText = ""
         rawAmount = 0.0
         amountInputString = ""
-        selectedDate = Date()
+        selectedDate = initialDate ?? Date()
         isInstallmentsEnabled = false
         installmentsCount = 2
     }

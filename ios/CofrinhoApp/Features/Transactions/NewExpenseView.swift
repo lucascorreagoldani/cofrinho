@@ -9,13 +9,16 @@ public struct NewExpenseView: View {
         case notes = 2
     }
 
-    @State private var viewModel = NewExpenseViewModel()
+    @State private var viewModel: NewExpenseViewModel
     let token: String
+    private let onSaved: (() -> Void)?
 
     @FocusState private var focusedField: FormField?
 
-    public init(token: String) {
+    public init(token: String, initialDate: Date? = nil, onSaved: (() -> Void)? = nil) {
         self.token = token
+        self.onSaved = onSaved
+        self._viewModel = State(initialValue: NewExpenseViewModel(initialDate: initialDate))
     }
 
     public var body: some View {
@@ -437,7 +440,9 @@ public struct NewExpenseView: View {
             CreateAccountSheetView(viewModel: viewModel, token: token)
         }
         .alert("Sucesso", isPresented: $viewModel.showSuccessAlert) {
-            Button("OK", role: .cancel) {}
+            Button("OK", role: .cancel) {
+                onSaved?()
+            }
         } message: {
             Text(viewModel.successFeedback ?? "Gasto registrado com sucesso.")
         }
