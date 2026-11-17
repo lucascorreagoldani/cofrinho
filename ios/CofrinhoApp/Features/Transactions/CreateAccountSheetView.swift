@@ -218,6 +218,8 @@ public struct CreateAccountSheetView: View {
             )
             viewModel.accounts.append(created)
             viewModel.selectedAccount = created
+            LocalDataManager.shared.cacheAccounts(viewModel.accounts)
+            NewExpenseViewModel.invalidateRemoteSyncCache()
             AppLogger.shared.info("Nova conta criada: \(trimmed) (\(selectedType.rawValue))", category: .business)
             dismiss()
         } catch let err as any AppErrorProtocol {

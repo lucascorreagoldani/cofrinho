@@ -20,6 +20,8 @@ public struct TransactionsListView: View {
     @State private var selectedMonth: Int = Calendar.current.component(.month, from: Date())
     @State private var selectedYear: Int = Calendar.current.component(.year, from: Date())
     @State private var selectedDay: Int? = Calendar.current.component(.day, from: Date())
+    @State private var loadedMonth: Int? = nil
+    @State private var loadedYear: Int? = nil
     @State private var lastSwipeTimestamp: TimeInterval = 0
     @State private var selectedAccountId: Int? = nil
     @State private var selectedCategoryId: Int? = nil
@@ -27,6 +29,7 @@ public struct TransactionsListView: View {
 
     // Estados de Sheets e Detalhes
     @State private var showNewExpenseSheet: Bool = false
+    @State private var didCreateExpenseInSheet: Bool = false
     @State private var newExpenseInitialDate: Date = Date()
     @State private var newExpenseSheetSessionId: UUID = UUID()
     @State private var showFilterSheet: Bool = false
@@ -245,8 +248,8 @@ public struct TransactionsListView: View {
                     }
                 }
 
-                if !isViewingToday {
-                    ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    HStack(spacing: 12) {
                         Button {
                             goToToday()
                         } label: {
@@ -255,20 +258,23 @@ public struct TransactionsListView: View {
                                 Text("Hoje")
                                     .font(.caption.bold())
                             }
-                            .foregroundStyle(Color.blue)
+                            .foregroundStyle(isViewingToday ? Color.secondary : Color.blue)
                         }
-                    }
-                }
+                        .disabled(isViewingToday)
+                        .opacity(isViewingToday ? 0.35 : 1.0)
+                        .accessibilityLabel("Ir para hoje")
 
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        newExpenseInitialDate = Date()
-                        newExpenseSheetSessionId = UUID()
-                        showNewExpenseSheet = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(Color.blue)
+                        Button {
+                            didCreateExpenseInSheet = false
+                            newExpenseInitialDate = Date()
+                            newExpenseSheetSessionId = UUID()
+                            showNewExpenseSheet = true
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(Color.blue)
+                        }
+                        .accessibilityLabel("Adicionar gasto na data de hoje")
                     }
                 }
             }
@@ -276,6 +282,8 @@ public struct TransactionsListView: View {
             .sheet(
                 isPresented: $showNewExpenseSheet,
                 onDismiss: {
+                    guard didCreateExpenseInSheet else { return }
+                    didCreateExpenseInSheet = false
                     Task {
                         await loadTransactions(reset: true)
                     }
@@ -286,6 +294,7 @@ public struct TransactionsListView: View {
                         token: token,
                         initialDate: newExpenseInitialDate,
                         onSaved: {
+                            didCreateExpenseInSheet = true
                             showNewExpenseSheet = false
                         }
                     )
@@ -336,6 +345,9 @@ public struct TransactionsListView: View {
                     selectedMonth: $selectedMonth,
                     selectedYear: $selectedYear,
                     onApply: {
+                        guard selectedMonth != loadedMonth || selectedYear != loadedYear || transactions.isEmpty else {
+                            return
+                        }
                         Task {
                             await loadTransactions(reset: true)
                         }
@@ -831,6 +843,7 @@ public struct TransactionsListView: View {
                 }
             } else {
                 Button {
+                    didCreateExpenseInSheet = false
                     newExpenseInitialDate = currentlyViewedDate
                     newExpenseSheetSessionId = UUID()
                     showNewExpenseSheet = true
@@ -1005,6 +1018,8 @@ public struct TransactionsListView: View {
         let fetchToken = UUID()
         activeFetchToken = fetchToken
         let pageToFetch = reset ? 1 : currentPage
+        let requestMonth = selectedMonth
+        let requestYear = selectedYear
 
         if reset {
             currentPage = 1
@@ -1030,8 +1045,8 @@ public struct TransactionsListView: View {
         do {
             let fetched = try await TransactionsAPIService.shared.listTransactions(
                 token: token,
-                month: selectedMonth,
-                year: selectedYear,
+                month: requestMonth,
+                year: requestYear,
                 categoryId: selectedCategoryId,
                 accountId: selectedAccountId,
                 status: filterStatus,
@@ -1045,6 +1060,8 @@ public struct TransactionsListView: View {
 
             if reset {
                 transactions = fetched
+                loadedMonth = requestMonth
+                loadedYear = requestYear
                 clearInvalidSelectedDayIfNeeded()
             } else {
                 transactions.append(contentsOf: fetched)

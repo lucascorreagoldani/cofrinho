@@ -42,6 +42,14 @@ public final class NewExpenseViewModel {
     private let transactionsAPI = TransactionsAPIService.shared
     private let initialDate: Date?
 
+    private static var lastRemoteSyncTimestamp: TimeInterval = 0
+    private static var cachedRemoteSuggestions: [SuggestionItemDTO] = []
+
+    public static func invalidateRemoteSyncCache() {
+        lastRemoteSyncTimestamp = 0
+        cachedRemoteSuggestions = []
+    }
+
     public init(initialDate: Date? = nil) {
         self.initialDate = initialDate
         self.selectedDate = initialDate ?? Date()
@@ -107,7 +115,7 @@ public final class NewExpenseViewModel {
         isLoading = true
         defer { isLoading = false }
 
-        // 1. Carregamento instantâneo do cache SwiftData para 0 delay na UI
+        // 1. Carregamento instantâneo do cache SwiftData / memória para 0 delay na UI
         let cachedCats = LocalDataManager.shared.fetchCachedCategories()
         if !cachedCats.isEmpty && self.categories.isEmpty {
             self.categories = cachedCats
@@ -120,52 +128,83 @@ public final class NewExpenseViewModel {
             if selectedAccount == nil { selectedAccount = cachedAccs.first }
         }
 
+        let warmupSuggestions = Self.cachedRemoteSuggestions.isEmpty
+            ? deduplicateSuggestions(LocalDataManager.shared.fetchLocalPredictiveSuggestions())
+            : Self.cachedRemoteSuggestions
+        if !warmupSuggestions.isEmpty && self.allSuggestions.isEmpty {
+            self.allSuggestions = warmupSuggestions
+            filterSuggestions()
+        }
+
+        let now = Date().timeIntervalSinceReferenceDate
+        let hasWarmCache = !self.categories.isEmpty && !self.accounts.isEmpty
+        if hasWarmCache && (now - Self.lastRemoteSyncTimestamp) < 45 {
+            return
+        }
+
         // 2. Dispara sincronização em segundo plano de pendências offline
         Task {
             await LocalDataManager.shared.syncPendingTransactions(token: token)
         }
 
-        // 3. Atualização resiliente de Categorias da VPS
-        do {
-            let loadedCats = try await categoriesAPI.listCategories(token: token)
+        // 3. Atualização paralela e resiliente de Categorias, Contas e Sugestões na VPS
+        async let catsTask: [CategoryModel]? = {
+            do {
+                return try await categoriesAPI.listCategories(token: token)
+            } catch {
+                AppLogger.shared.warning("Falha ao carregar categorias remotas: \(error.localizedDescription)", category: .network)
+                return nil
+            }
+        }()
+
+        async let accsTask: [AccountModel]? = {
+            do {
+                return try await accountsAPI.listAccounts(token: token)
+            } catch {
+                AppLogger.shared.warning("Falha ao carregar contas remotas: \(error.localizedDescription)", category: .network)
+                return nil
+            }
+        }()
+
+        async let suggTask: [SuggestionItemDTO]? = {
+            do {
+                return try await transactionsAPI.getSuggestions(token: token)
+            } catch {
+                AppLogger.shared.warning("Falha ao buscar sugestões remotas (mantendo predição offline): \(error.localizedDescription)", category: .network)
+                return nil
+            }
+        }()
+
+        let (loadedCats, loadedAccs, loadedSugg) = await (catsTask, accsTask, suggTask)
+
+        if let loadedCats {
             self.categories = loadedCats
             LocalDataManager.shared.cacheCategories(loadedCats)
             if selectedCategory == nil, let firstCat = loadedCats.first {
                 selectedCategory = firstCat
             }
             AppLogger.shared.info("Categorias carregadas e sincronizadas (\(loadedCats.count)).", category: .network)
-        } catch {
-            AppLogger.shared.warning("Falha ao carregar categorias remotas: \(error.localizedDescription)", category: .network)
         }
 
-        // 4. Atualização resiliente de Contas da VPS
-        do {
-            let loadedAccs = try await accountsAPI.listAccounts(token: token)
+        if let loadedAccs {
             self.accounts = loadedAccs
             LocalDataManager.shared.cacheAccounts(loadedAccs)
             if selectedAccount == nil, let firstAcc = loadedAccs.first {
                 selectedAccount = firstAcc
             }
             AppLogger.shared.info("Contas carregadas e sincronizadas (\(loadedAccs.count)).", category: .network)
-        } catch {
-            AppLogger.shared.warning("Falha ao carregar contas remotas: \(error.localizedDescription)", category: .network)
         }
 
-        // 5. Carrega sugestões preditivas instantaneamente do cache SwiftData e atualiza da VPS
-        let localSugg = deduplicateSuggestions(LocalDataManager.shared.fetchLocalPredictiveSuggestions())
-        if !localSugg.isEmpty && self.allSuggestions.isEmpty {
-            self.allSuggestions = localSugg
-            filterSuggestions()
-        }
-
-        do {
-            let loadedSugg = try await transactionsAPI.getSuggestions(token: token)
+        if let loadedSugg {
             let deduped = deduplicateSuggestions(loadedSugg)
             self.allSuggestions = deduped
+            Self.cachedRemoteSuggestions = deduped
             filterSuggestions()
             AppLogger.shared.info("Sugestões preditivas carregadas (\(deduped.count)).", category: .network)
-        } catch {
-            AppLogger.shared.warning("Falha ao buscar sugestões remotas (mantendo predição offline): \(error.localizedDescription)", category: .network)
+        }
+
+        if loadedCats != nil && loadedAccs != nil {
+            Self.lastRemoteSyncTimestamp = Date().timeIntervalSinceReferenceDate
         }
     }
 
@@ -265,8 +304,9 @@ public final class NewExpenseViewModel {
                 installmentsCount: installmentsCount
             )
 
-            // Atualiza cache local instantaneamente
+            // Atualiza cache local instantaneamente e invalida cache remoto de sugestões/auxiliares
             LocalDataManager.shared.cacheTransactions([created])
+            Self.invalidateRemoteSyncCache()
 
             successFeedback = isInstallmentsEnabled
                 ? "Gasto parcelado em \(installmentsCount)x cadastrado com sucesso!"
@@ -289,6 +329,7 @@ public final class NewExpenseViewModel {
                 isInstallment: isInstallmentsEnabled && account.allowsInstallments,
                 installmentsCount: installmentsCount
             )
+            Self.invalidateRemoteSyncCache()
 
             successFeedback = "Gasto salvo no modo offline! Será sincronizado automaticamente assim que você se reconectar."
             showSuccessAlert = true

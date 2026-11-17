@@ -192,6 +192,8 @@ public struct CreateCategorySheetView: View {
             )
             viewModel.categories.append(created)
             viewModel.selectedCategory = created
+            LocalDataManager.shared.cacheCategories(viewModel.categories)
+            NewExpenseViewModel.invalidateRemoteSyncCache()
             AppLogger.shared.info("Nova categoria criada: \(trimmed)", category: .business)
             dismiss()
         } catch let err as any AppErrorProtocol {

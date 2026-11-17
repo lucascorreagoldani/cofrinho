@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 /// View Model reativo com @Observable e @MainActor gerenciando o ciclo de vida de autenticação,
 /// renovação silenciosa de sessão (Refresh Token de 7 dias) e verificação biométrica (Face ID / Touch ID).
@@ -117,6 +118,7 @@ public final class AuthViewModel {
         case .background:
             guard isAuthenticated else { return }
             lastBackgroundTimestamp = Date()
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             let localBiometryPref = UserDefaults.standard.bool(forKey: biometryPrefKey)
             let isBiometryEnabled = currentPreferences?.verification ?? localBiometryPref
             if isBiometryEnabled && BiometryService.shared.isBiometryAvailable {
