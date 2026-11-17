@@ -280,32 +280,192 @@ export class TransactionsService {
     );
   }
 
+  private cleanSuggestionDescription(raw: string): string {
+    let cleaned = raw.trim();
+    /* Remove sufixos de parcelamento no formato (1/2), (2/10), etc. */
+    cleaned = cleaned.replace(/\s*\(\d+\s*\/\s*\d+\)\s*$/g, '');
+    /* Remove sufixos de quantidade no formato (2x), 2x, 10X, etc. */
+    cleaned = cleaned.replace(/\s*\(\d+\s*[xX]\)\s*$/g, '');
+    cleaned = cleaned.replace(/\s+\d+\s*[xX]\s*$/g, '');
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    return cleaned.length > 0 ? cleaned : raw.trim();
+  }
+
   async getSuggestions(userId: number, query = '') {
-    /* Algoritmo de sugestão de descrições frequentes do usuário */
-    const trimmed = query.trim();
-    const searchPattern = trimmed.length > 0 ? `${trimmed}%` : '%';
+    /* Algoritmo preditivo multifatorial: analisa horário, dia da semana, demanda e recência */
+    const normalizedQuery = query.trim().toLowerCase();
 
     const sql = `
       SELECT
         t.description,
         t.category_id,
         t.account_id,
-        COUNT(*)::int AS usage_count,
-        MAX(t.date) AS last_used
+        t.date,
+        t.created_at
       FROM transactions t
-      WHERE t.user_id = $1 AND t.status != 'deleted' AND t.description ILIKE $2
-      GROUP BY t.description, t.category_id, t.account_id
-      ORDER BY usage_count DESC, last_used DESC
-      LIMIT 6
+      WHERE t.user_id = $1
+        AND t.status != 'deleted'
+        AND (t.is_installment = false OR t.installment_number = 1)
+      ORDER BY t.created_at DESC
+      LIMIT 250
     `;
 
-    const result = await dbPool.query(sql, [userId, searchPattern]);
+    const result = await dbPool.query(sql, [userId]);
 
-    return result.rows.map((row) => ({
-      description: row.description,
-      suggested_category_id: row.category_id ? Number(row.category_id) : null,
-      suggested_account_id: row.account_id ? Number(row.account_id) : null,
-      count: Number(row.usage_count),
+    const nowMs = Date.now();
+    const nowDate = new Date(nowMs);
+    const nowHour = nowDate.getHours() + nowDate.getMinutes() / 60;
+    const nowDayOfWeek = nowDate.getDay();
+    const nowIsWeekend = nowDayOfWeek === 0 || nowDayOfWeek === 6;
+
+    interface GroupedSuggestion {
+      displayName: string;
+      count: number;
+      lastCreatedAt: number;
+      maxTimeBonus: number;
+      timeAffinitySum: number;
+      maxDayBonus: number;
+      dayAffinitySum: number;
+      categoryCounts: Map<number, number>;
+      accountCounts: Map<number, number>;
+    }
+
+    const groups = new Map<string, GroupedSuggestion>();
+
+    for (const row of result.rows) {
+      const cleanDesc = this.cleanSuggestionDescription(String(row.description || ''));
+      const key = cleanDesc.toLowerCase();
+      if (!key) {
+        continue;
+      }
+
+      const txTimestamp = Number(row.created_at || row.date || nowMs);
+      const txDate = new Date(txTimestamp);
+      const txHour = txDate.getHours() + txDate.getMinutes() / 60;
+      const txDayOfWeek = txDate.getDay();
+      const txIsWeekend = txDayOfWeek === 0 || txDayOfWeek === 6;
+
+      /* Diferença circular em horas (0..12h) */
+      const rawHourDiff = Math.abs(nowHour - txHour);
+      const circularHourDiff = Math.min(rawHourDiff, 24 - rawHourDiff);
+
+      let timeBonus = 0;
+      if (circularHourDiff <= 1) {
+        timeBonus = 35;
+      } else if (circularHourDiff <= 3) {
+        timeBonus = 20;
+      } else if (circularHourDiff <= 5) {
+        timeBonus = 8;
+      }
+
+      /* Afinidade pelo mesmo dia da semana ou mesmo regime (dia útil vs. fim de semana) */
+      let dayBonus = 0;
+      if (txDayOfWeek === nowDayOfWeek) {
+        dayBonus = 20;
+      } else if (txIsWeekend === nowIsWeekend) {
+        dayBonus = 8;
+      }
+
+      let group = groups.get(key);
+      if (!group) {
+        group = {
+          displayName: cleanDesc,
+          count: 0,
+          lastCreatedAt: txTimestamp,
+          maxTimeBonus: 0,
+          timeAffinitySum: 0,
+          maxDayBonus: 0,
+          dayAffinitySum: 0,
+          categoryCounts: new Map<number, number>(),
+          accountCounts: new Map<number, number>(),
+        };
+        groups.set(key, group);
+      }
+
+      group.count += 1;
+      if (txTimestamp > group.lastCreatedAt) {
+        group.lastCreatedAt = txTimestamp;
+        group.displayName = cleanDesc;
+      }
+      group.maxTimeBonus = Math.max(group.maxTimeBonus, timeBonus);
+      group.timeAffinitySum += timeBonus;
+      group.maxDayBonus = Math.max(group.maxDayBonus, dayBonus);
+      group.dayAffinitySum += dayBonus;
+
+      if (row.category_id) {
+        const catId = Number(row.category_id);
+        group.categoryCounts.set(catId, (group.categoryCounts.get(catId) ?? 0) + 1);
+      }
+      if (row.account_id) {
+        const accId = Number(row.account_id);
+        group.accountCounts.set(accId, (group.accountCounts.get(accId) ?? 0) + 1);
+      }
+    }
+
+    const pickTopId = (counts: Map<number, number>): number | null => {
+      let bestId: number | null = null;
+      let bestCount = -1;
+      for (const [id, count] of counts.entries()) {
+        if (count > bestCount) {
+          bestCount = count;
+          bestId = id;
+        }
+      }
+      return bestId;
+    };
+
+    const scored: Array<{
+      description: string;
+      suggested_category_id: number | null;
+      suggested_account_id: number | null;
+      count: number;
+      score: number;
+      lastCreatedAt: number;
+    }> = [];
+
+    for (const [key, group] of groups.entries()) {
+      if (normalizedQuery.length > 0 && !key.includes(normalizedQuery)) {
+        continue;
+      }
+
+      const avgTimeBonus = group.timeAffinitySum / group.count;
+      const avgDayBonus = group.dayAffinitySum / group.count;
+      const timeScore = group.maxTimeBonus * 0.65 + avgTimeBonus * 0.35;
+      const dayScore = group.maxDayBonus * 0.7 + avgDayBonus * 0.3;
+
+      const daysSinceLast = Math.max(0, (nowMs - group.lastCreatedAt) / (1000 * 60 * 60 * 24));
+      const recencyScore = 35 * Math.exp(-daysSinceLast / 14);
+      const demandScore = Math.min(30, Math.log2(group.count + 1) * 12);
+
+      let queryBonus = 0;
+      if (normalizedQuery.length > 0 && key.startsWith(normalizedQuery)) {
+        queryBonus = 25;
+      }
+
+      const totalScore = timeScore + dayScore + recencyScore + demandScore + queryBonus;
+
+      scored.push({
+        description: group.displayName,
+        suggested_category_id: pickTopId(group.categoryCounts),
+        suggested_account_id: pickTopId(group.accountCounts),
+        count: group.count,
+        score: totalScore,
+        lastCreatedAt: group.lastCreatedAt,
+      });
+    }
+
+    scored.sort((a, b) => {
+      if (Math.abs(b.score - a.score) > 0.001) {
+        return b.score - a.score;
+      }
+      return b.lastCreatedAt - a.lastCreatedAt;
+    });
+
+    return scored.slice(0, 8).map((item) => ({
+      description: item.description,
+      suggested_category_id: item.suggested_category_id,
+      suggested_account_id: item.suggested_account_id,
+      count: item.count,
     }));
   }
 

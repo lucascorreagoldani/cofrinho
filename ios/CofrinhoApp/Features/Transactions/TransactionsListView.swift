@@ -78,6 +78,9 @@ public struct TransactionsListView: View {
         if isCurrentMonthAndYear {
             days.append(todayDay)
         }
+        if let selectedDay {
+            days.append(selectedDay)
+        }
         return Array(Set(days)).sorted()
     }
 
@@ -289,13 +292,13 @@ public struct TransactionsListView: View {
                     }
                 )
             }
-            // MARK: - Sheet de Salto Direto de Mês/Ano
+            // MARK: - Sheet de Salto Direto de Data, Mês e Ano
             .sheet(isPresented: $showMonthYearPicker) {
                 MonthYearPickerSheetView(
+                    selectedDay: $selectedDay,
                     selectedMonth: $selectedMonth,
                     selectedYear: $selectedYear,
                     onApply: {
-                        selectedDay = nil
                         Task {
                             await loadTransactions(reset: true)
                         }
@@ -918,7 +921,7 @@ public struct TransactionsListView: View {
     }
 
     private func clearInvalidSelectedDayIfNeeded() {
-        if let currentDay = selectedDay, !selectableDays.contains(currentDay) {
+        if let currentDay = selectedDay, !(1...31).contains(currentDay) {
             selectedDay = isCurrentMonthAndYear ? todayDay : nil
         }
     }

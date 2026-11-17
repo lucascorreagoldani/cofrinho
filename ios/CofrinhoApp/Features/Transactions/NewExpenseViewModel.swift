@@ -147,18 +147,43 @@ public final class NewExpenseViewModel {
             AppLogger.shared.warning("Falha ao carregar contas remotas: \(error.localizedDescription)", category: .network)
         }
 
-        // 5. Carrega sugestões de gastos frequentes
+        // 5. Carrega sugestões preditivas instantaneamente do cache SwiftData e atualiza da VPS
+        let localSugg = deduplicateSuggestions(LocalDataManager.shared.fetchLocalPredictiveSuggestions())
+        if !localSugg.isEmpty && self.allSuggestions.isEmpty {
+            self.allSuggestions = localSugg
+            filterSuggestions()
+        }
+
         do {
             let loadedSugg = try await transactionsAPI.getSuggestions(token: token)
-            self.allSuggestions = loadedSugg
-            self.filteredSuggestions = loadedSugg
-            AppLogger.shared.info("Sugestões de histórico carregadas (\(loadedSugg.count)).", category: .network)
+            let deduped = deduplicateSuggestions(loadedSugg)
+            self.allSuggestions = deduped
+            filterSuggestions()
+            AppLogger.shared.info("Sugestões preditivas carregadas (\(deduped.count)).", category: .network)
         } catch {
-            AppLogger.shared.warning("Falha ao buscar sugestões no startup: \(error.localizedDescription)", category: .network)
+            AppLogger.shared.warning("Falha ao buscar sugestões remotas (mantendo predição offline): \(error.localizedDescription)", category: .network)
         }
     }
 
     // MARK: - Autocomplete & Sugestões
+    private func deduplicateSuggestions(_ items: [SuggestionItemDTO]) -> [SuggestionItemDTO] {
+        var seen: Set<String> = []
+        var result: [SuggestionItemDTO] = []
+        for item in items {
+            let cleanDesc = SuggestionItemDTO.sanitizeDescription(item.description)
+            let key = cleanDesc.lowercased()
+            guard !key.isEmpty, !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(SuggestionItemDTO(
+                description: cleanDesc,
+                suggestedCategoryId: item.suggestedCategoryId,
+                suggestedAccountId: item.suggestedAccountId,
+                count: item.count
+            ))
+        }
+        return result
+    }
+
     private func filterSuggestions() {
         let query = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let newFiltered: [SuggestionItemDTO]

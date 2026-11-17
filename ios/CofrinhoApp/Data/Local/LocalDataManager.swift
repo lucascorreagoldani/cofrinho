@@ -495,4 +495,121 @@ public final class LocalDataManager {
         let entities = (try? context.fetch(descriptor)) ?? []
         return entities.map { $0.toModel() }
     }
+
+    // MARK: - Sugestões Preditivas Locais (Fallback Offline)
+
+    /// Calcula sugestões preditivas locais no SwiftData analisando horário, dia da semana,
+    /// recência e demanda, removendo sufixos de parcelamento/quantidade.
+    public func fetchLocalPredictiveSuggestions(limit: Int = 8) -> [SuggestionItemDTO] {
+        let deletedRaw = RecordStatus.deleted.rawValue
+        var descriptor = FetchDescriptor<LocalTransaction>(
+            predicate: #Predicate {
+                $0.status != deletedRaw && (!$0.isInstallment || $0.installmentNumber == 1)
+            },
+            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 250
+
+        let items = (try? context.fetch(descriptor)) ?? []
+        guard !items.isEmpty else { return [] }
+
+        let now = Date()
+        let nowMs = Int(now.timeIntervalSince1970 * 1000)
+        let calendar = Calendar.current
+        let nowHour = Double(calendar.component(.hour, from: now)) + Double(calendar.component(.minute, from: now)) / 60.0
+        let nowWeekday = calendar.component(.weekday, from: now)
+        let nowIsWeekend = (nowWeekday == 1 || nowWeekday == 7)
+
+        struct GroupStats {
+            var displayName: String
+            var count: Int = 0
+            var lastCreatedAt: Int
+            var maxTimeBonus: Double = 0
+            var timeAffinitySum: Double = 0
+            var maxDayBonus: Double = 0
+            var dayAffinitySum: Double = 0
+            var categoryCounts: [Int: Int] = [:]
+            var accountCounts: [Int: Int] = [:]
+        }
+
+        var groups: [String: GroupStats] = [:]
+
+        for item in items {
+            let cleanDesc = SuggestionItemDTO.sanitizeDescription(item.transactionDescription)
+            let key = cleanDesc.lowercased()
+            guard !key.isEmpty else { continue }
+
+            let txTs = item.createdAt > 0 ? item.createdAt : item.date
+            let txDate = Date(timeIntervalSince1970: TimeInterval(txTs) / 1000.0)
+            let txHour = Double(calendar.component(.hour, from: txDate)) + Double(calendar.component(.minute, from: txDate)) / 60.0
+            let txWeekday = calendar.component(.weekday, from: txDate)
+            let txIsWeekend = (txWeekday == 1 || txWeekday == 7)
+
+            let rawHourDiff = abs(nowHour - txHour)
+            let circularDiff = min(rawHourDiff, 24.0 - rawHourDiff)
+
+            let timeBonus: Double
+            if circularDiff <= 1.0 {
+                timeBonus = 35.0
+            } else if circularDiff <= 3.0 {
+                timeBonus = 20.0
+            } else if circularDiff <= 5.0 {
+                timeBonus = 8.0
+            } else {
+                timeBonus = 0.0
+            }
+
+            let dayBonus: Double
+            if txWeekday == nowWeekday {
+                dayBonus = 20.0
+            } else if txIsWeekend == nowIsWeekend {
+                dayBonus = 8.0
+            } else {
+                dayBonus = 0.0
+            }
+
+            var group = groups[key] ?? GroupStats(displayName: cleanDesc, lastCreatedAt: txTs)
+            group.count += 1
+            if txTs > group.lastCreatedAt {
+                group.lastCreatedAt = txTs
+                group.displayName = cleanDesc
+            }
+            group.maxTimeBonus = max(group.maxTimeBonus, timeBonus)
+            group.timeAffinitySum += timeBonus
+            group.maxDayBonus = max(group.maxDayBonus, dayBonus)
+            group.dayAffinitySum += dayBonus
+            group.categoryCounts[item.categoryId, default: 0] += 1
+            group.accountCounts[item.accountId, default: 0] += 1
+            groups[key] = group
+        }
+
+        let scored = groups.values.map { group -> (dto: SuggestionItemDTO, score: Double, lastTs: Int) in
+            let avgTime = group.timeAffinitySum / Double(group.count)
+            let avgDay = group.dayAffinitySum / Double(group.count)
+            let timeScore = group.maxTimeBonus * 0.65 + avgTime * 0.35
+            let dayScore = group.maxDayBonus * 0.70 + avgDay * 0.30
+            let daysSinceLast = max(0.0, Double(nowMs - group.lastCreatedAt) / (1000.0 * 60.0 * 60.0 * 24.0))
+            let recencyScore = 35.0 * exp(-daysSinceLast / 14.0)
+            let demandScore = min(30.0, log2(Double(group.count) + 1.0) * 12.0)
+
+            let topCat = group.categoryCounts.max(by: { $0.value < $1.value })?.key
+            let topAcc = group.accountCounts.max(by: { $0.value < $1.value })?.key
+
+            let dto = SuggestionItemDTO(
+                description: group.displayName,
+                suggestedCategoryId: topCat,
+                suggestedAccountId: topAcc,
+                count: group.count
+            )
+            return (dto, timeScore + dayScore + recencyScore + demandScore, group.lastCreatedAt)
+        }
+        .sorted {
+            if abs($0.score - $1.score) > 0.001 {
+                return $0.score > $1.score
+            }
+            return $0.lastTs > $1.lastTs
+        }
+
+        return Array(scored.prefix(limit).map { $0.dto })
+    }
 }

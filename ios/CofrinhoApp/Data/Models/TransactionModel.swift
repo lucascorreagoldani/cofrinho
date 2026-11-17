@@ -35,7 +35,7 @@ public struct AccountRelationDTO: Codable, Sendable, Hashable {
 
 /// DTO para sugestões inteligentes de autocompletar baseadas no histórico do usuário
 public struct SuggestionItemDTO: Codable, Sendable, Identifiable, Hashable {
-    public var id: String { description }
+    public var id: String { description.lowercased() }
     public let description: String
     public let suggestedCategoryId: Int?
     public let suggestedAccountId: Int?
@@ -49,10 +49,43 @@ public struct SuggestionItemDTO: Codable, Sendable, Identifiable, Hashable {
     }
 
     public init(description: String, suggestedCategoryId: Int? = nil, suggestedAccountId: Int? = nil, count: Int = 1) {
-        self.description = description
+        self.description = Self.sanitizeDescription(description)
         self.suggestedCategoryId = suggestedCategoryId
         self.suggestedAccountId = suggestedAccountId
         self.count = count
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawDescription = try container.decode(String.self, forKey: .description)
+        self.description = Self.sanitizeDescription(rawDescription)
+        self.suggestedCategoryId = try container.decodeIfPresent(Int.self, forKey: .suggestedCategoryId)
+        self.suggestedAccountId = try container.decodeIfPresent(Int.self, forKey: .suggestedAccountId)
+        self.count = try container.decodeIfPresent(Int.self, forKey: .count) ?? 1
+    }
+
+    /// Remove sufixos de parcelamento `(1/2)`, `(2/10)` e quantidades `(2x)` / ` 2x` mantendo o nome limpo do estabelecimento/gasto.
+    public static func sanitizeDescription(_ raw: String) -> String {
+        var cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let patterns = [
+            "\\s*\\(\\d+\\s*\\/\\s*\\d+\\)\\s*$",
+            "\\s*\\(\\d+\\s*[xX]\\)\\s*$",
+            "\\s+\\d+\\s*[xX]\\s*$"
+        ]
+
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+                let range = NSRange(location: 0, length: cleaned.utf16.count)
+                cleaned = regex.stringByReplacingMatches(in: cleaned, options: [], range: range, withTemplate: "")
+            }
+        }
+
+        cleaned = cleaned
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        return cleaned.isEmpty ? raw.trimmingCharacters(in: .whitespacesAndNewlines) : cleaned
     }
 }
 
