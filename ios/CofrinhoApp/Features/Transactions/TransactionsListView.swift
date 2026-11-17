@@ -93,7 +93,7 @@ public struct TransactionsListView: View {
     public var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Bloco superior unificado com gesto fluido horizontal para troca rápida de dia/mês
+                // Bloco superior unificado (gesto de troca de dia isolado apenas no card de resumo)
                 VStack(spacing: 0) {
                     // MARK: - Barra de Seleção de Mês/Ano (Sem botão Hoje duplicado)
                     monthSelectorHeader
@@ -106,9 +106,9 @@ public struct TransactionsListView: View {
 
                     // MARK: - Card de Resumo (Dia ou Mês) com Projeção de Parcelas
                     monthlySummaryCard
+                        .contentShape(Rectangle())
+                        .gesture(horizontalDaySwipeGesture)
                 }
-                .contentShape(Rectangle())
-                .simultaneousGesture(horizontalDaySwipeGesture)
 
                 // MARK: - Lista de Gastos
                 if isLoading && transactions.isEmpty {
@@ -193,10 +193,10 @@ public struct TransactionsListView: View {
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                             .contentShape(Rectangle())
+                            .gesture(horizontalDaySwipeGesture)
                         }
                     }
                     .listStyle(.insetGrouped)
-                    .simultaneousGesture(horizontalDaySwipeGesture)
                     .refreshable {
                         await loadTransactions(reset: true)
                     }
