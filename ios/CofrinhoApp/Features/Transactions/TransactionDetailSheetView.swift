@@ -56,6 +56,7 @@ public struct TransactionDetailSheetView: View {
         token: String,
         initialCategories: [CategoryModel] = [],
         initialAccounts: [AccountModel] = [],
+        initiallyEditing: Bool = false,
         onUpdated: @escaping () -> Void = {}
     ) {
         self._transaction = State(initialValue: transaction)
@@ -64,6 +65,19 @@ public struct TransactionDetailSheetView: View {
         self._accounts = State(initialValue: initialAccounts)
         self.onUpdated = onUpdated
         self._draftNotes = State(initialValue: transaction.notes ?? "")
+
+        let amountDouble = NSDecimalNumber(decimal: transaction.amount).doubleValue
+        self._isEditingFull = State(initialValue: initiallyEditing)
+        self._draftDescription = State(initialValue: transaction.description)
+        self._draftRawAmount = State(initialValue: amountDouble)
+        self._draftAmountInput = State(initialValue: amountDouble.brlCurrencyFormatted)
+        self._draftDate = State(initialValue: transaction.dateValue)
+        self._draftHasTime = State(initialValue: transaction.hasTime)
+        self._draftCategoryId = State(initialValue: transaction.categoryId)
+        self._draftAccountId = State(initialValue: transaction.accountId)
+        self._draftType = State(initialValue: transaction.typeEnum)
+        self._draftStatus = State(initialValue: transaction.statusEnum == .hidden ? .hidden : .active)
+        self._draftFullNotes = State(initialValue: transaction.notes ?? "")
     }
 
     public var body: some View {

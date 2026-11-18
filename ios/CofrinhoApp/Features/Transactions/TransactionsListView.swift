@@ -23,7 +23,6 @@ public struct TransactionsListView: View {
     @State private var loadedMonth: Int? = nil
     @State private var loadedYear: Int? = nil
     @State private var lastSwipeTimestamp: TimeInterval = 0
-    @State private var lastRowDragTimestamp: TimeInterval = 0
     @State private var selectedAccountId: Int? = nil
     @State private var selectedCategoryId: Int? = nil
     @State private var filterStatus: TransactionFilterStatus = .active
@@ -36,10 +35,18 @@ public struct TransactionsListView: View {
     @State private var showFilterSheet: Bool = false
     @State private var showMonthYearPicker: Bool = false
     @State private var selectedTransactionForDetail: TransactionModel? = nil
+    @State private var openDetailInEditMode: Bool = false
 
     // Dados Auxiliares para Filtros e Edição
     @State private var availableAccounts: [AccountModel] = []
     @State private var availableCategories: [CategoryModel] = []
+
+    // Estados de Exclusão e Confirmações
+    @State private var transactionToDelete: TransactionModel?
+    @State private var showDeleteConfirmation: Bool = false
+    @State private var showSingleDeleteConfirmation: Bool = false
+    @State private var transactionToToggleVisibility: TransactionModel?
+    @State private var showVisibilityConfirmation: Bool = false
 
     @State private var activeError: (any AppErrorProtocol)?
 
@@ -156,22 +163,40 @@ public struct TransactionsListView: View {
                             transactionRow(tx)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
-                                    guard Date().timeIntervalSinceReferenceDate - lastRowDragTimestamp > 0.2 else {
-                                        return
-                                    }
+                                    openDetailInEditMode = false
                                     selectedTransactionForDetail = tx
                                 }
-                                .simultaneousGesture(
-                                    DragGesture(minimumDistance: 6, coordinateSpace: .local)
-                                        .onChanged { _ in
-                                            lastRowDragTimestamp = Date().timeIntervalSinceReferenceDate
-                                        }
-                                        .onEnded { _ in
-                                            lastRowDragTimestamp = Date().timeIntervalSinceReferenceDate
-                                        }
-                                )
                                 .onAppear {
                                     loadMoreIfNeeded(currentItem: tx)
+                                }
+                                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                    Button {
+                                        openDetailInEditMode = true
+                                        selectedTransactionForDetail = tx
+                                    } label: {
+                                        Label("Editar", systemImage: "pencil")
+                                    }
+                                    .tint(Color.blue)
+                                }
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    // Ação Primária: Excluir com Full Swipe
+                                    Button(role: .destructive) {
+                                        prepareDelete(tx)
+                                    } label: {
+                                        Label("Excluir", systemImage: "trash.fill")
+                                    }
+
+                                    // Ação Secundária: Ocultar / Desocultar
+                                    Button {
+                                        prepareToggleVisibility(tx)
+                                    } label: {
+                                        let isHidden = tx.statusEnum == .hidden
+                                        Label(
+                                            isHidden ? "Desocultar" : "Ocultar",
+                                            systemImage: isHidden ? "eye.fill" : "eye.slash.fill"
+                                        )
+                                    }
+                                    .tint(tx.statusEnum == .hidden ? Color.blue : Color.secondary)
                                 }
                         }
 
@@ -186,7 +211,7 @@ public struct TransactionsListView: View {
                             .listRowBackground(Color.clear)
                         }
 
-                        // Área ampla de respiro inferior para deslize horizontal fluido sem tocar em células
+                        // Área de respiro inferior compacta (não força barra de rolagem quando há poucos itens)
                         Section {
                             VStack(spacing: 6) {
                                 HStack(spacing: 6) {
@@ -196,11 +221,9 @@ public struct TransactionsListView: View {
                                         .font(.caption2)
                                 }
                                 .foregroundStyle(.tertiary)
-                                .padding(.top, 12)
-
-                                Spacer(minLength: 260)
+                                .padding(.vertical, 16)
                             }
-                            .frame(maxWidth: .infinity, minHeight: 300)
+                            .frame(maxWidth: .infinity, minHeight: 96)
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                             .contentShape(Rectangle())
@@ -208,6 +231,7 @@ public struct TransactionsListView: View {
                         }
                     }
                     .listStyle(.insetGrouped)
+                    .scrollIndicators(displayedTransactions.count > 5 ? .automatic : .hidden)
                     .refreshable {
                         await loadTransactions(reset: true)
                     }
@@ -299,6 +323,7 @@ public struct TransactionsListView: View {
                     token: token,
                     initialCategories: availableCategories,
                     initialAccounts: availableAccounts,
+                    initiallyEditing: openDetailInEditMode,
                     onUpdated: {
                         Task {
                             await loadTransactions(reset: true)
@@ -339,6 +364,57 @@ public struct TransactionsListView: View {
                         }
                     }
                 )
+            }
+            // MARK: - Confirmação: Exclusão de Gasto Único
+            .alert(
+                "Excluir este gasto?",
+                isPresented: $showSingleDeleteConfirmation,
+                presenting: transactionToDelete
+            ) { tx in
+                Button("Excluir Gasto", role: .destructive) {
+                    Task { await performDelete(tx, cascade: .single) }
+                }
+                Button("Cancelar", role: .cancel) {}
+            } message: { tx in
+                Text("Tem certeza de que deseja excluir \"\(tx.description)\" no valor de \(tx.formattedAmount)? O lançamento será removido do seu extrato.")
+            }
+            // MARK: - Confirmação: Exclusão em Cascata de Parcelas
+            .confirmationDialog(
+                "Excluir Gasto Parcelado",
+                isPresented: $showDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Excluir apenas esta parcela", role: .destructive) {
+                    if let tx = transactionToDelete {
+                        Task { await performDelete(tx, cascade: .single) }
+                    }
+                }
+                Button("Excluir esta e todas as futuras", role: .destructive) {
+                    if let tx = transactionToDelete {
+                        Task { await performDelete(tx, cascade: .allFuture) }
+                    }
+                }
+                Button("Cancelar", role: .cancel) {}
+            } message: {
+                Text("Este gasto faz parte de um parcelamento. Deseja remover apenas a parcela atual ou também as parcelas restantes?")
+            }
+            // MARK: - Confirmação: Ocultar / Desocultar
+            .alert(
+                transactionToToggleVisibility?.statusEnum == .hidden ? "Desocultar este gasto?" : "Ocultar este gasto?",
+                isPresented: $showVisibilityConfirmation,
+                presenting: transactionToToggleVisibility
+            ) { tx in
+                let isHidden = tx.statusEnum == .hidden
+                Button(isHidden ? "Desocultar" : "Ocultar", role: isHidden ? .none : .destructive) {
+                    Task { await toggleVisibility(tx) }
+                }
+                Button("Cancelar", role: .cancel) {}
+            } message: { tx in
+                if tx.statusEnum == .hidden {
+                    Text("Deseja desocultar \"\(tx.description)\"? O gasto voltará a ser exibido normalmente no extrato padrão.")
+                } else {
+                    Text("Deseja ocultar \"\(tx.description)\"? O gasto não aparecerá no extrato padrão, mas você poderá visualizá-lo a qualquer momento ativando o filtro 'Exibir despesas ocultas'.")
+                }
             }
             .handleAnyAppError($activeError)
             .task {
@@ -1098,5 +1174,81 @@ public struct TransactionsListView: View {
             }
         }
         return false
+    }
+
+    private func prepareDelete(_ tx: TransactionModel) {
+        transactionToDelete = tx
+        if tx.isInstallment && (tx.totalInstallments ?? 1) > 1 {
+            showDeleteConfirmation = true
+        } else {
+            showSingleDeleteConfirmation = true
+        }
+    }
+
+    private func prepareToggleVisibility(_ tx: TransactionModel) {
+        transactionToToggleVisibility = tx
+        showVisibilityConfirmation = true
+    }
+
+    private func performDelete(_ tx: TransactionModel, cascade: DeleteCascadeMode) async {
+        // Caso o lançamento só exista offline (id negativo), remove localmente sem chamada de rede
+        if tx.id < 0 {
+            LocalDataManager.shared.markOfflineDelete(id: tx.id, cascade: cascade)
+            loadTransactionsFromLocalCache()
+            clearInvalidSelectedDayIfNeeded()
+            return
+        }
+
+        do {
+            try await TransactionsAPIService.shared.deleteTransaction(
+                token: token,
+                id: tx.id,
+                cascade: cascade
+            )
+            LocalDataManager.shared.removeSyncedTransaction(id: tx.id, cascade: cascade)
+            AppLogger.shared.info("Transação \(tx.id) excluída com sucesso (modo: \(cascade.rawValue)).", category: .business)
+            await loadTransactions(reset: true)
+        } catch let err as any AppErrorProtocol where isConnectionError(err) {
+            LocalDataManager.shared.markOfflineDelete(id: tx.id, cascade: cascade)
+            loadTransactionsFromLocalCache()
+            clearInvalidSelectedDayIfNeeded()
+            AppLogger.shared.warning("Sem conexão: exclusão de \(tx.id) agendada na fila offline.", category: .database)
+        } catch let err as any AppErrorProtocol {
+            self.activeError = err
+            AppLogger.shared.error("Erro ao excluir gasto: \(err.errorDescription ?? err.localizedDescription)", category: .network)
+        } catch {
+            let unk = NetworkError.unknown(reason: error.localizedDescription)
+            self.activeError = unk
+            AppLogger.shared.error("Erro ao excluir gasto: \(error.localizedDescription)", category: .network)
+        }
+    }
+
+    private func toggleVisibility(_ tx: TransactionModel) async {
+        // Caso o lançamento só exista offline (id negativo), alterna localmente
+        if tx.id < 0 {
+            LocalDataManager.shared.markOfflineToggleVisibility(id: tx.id)
+            loadTransactionsFromLocalCache()
+            clearInvalidSelectedDayIfNeeded()
+            return
+        }
+
+        do {
+            let updated = try await TransactionsAPIService.shared.toggleVisibility(token: token, id: tx.id)
+            LocalDataManager.shared.cacheTransactions([updated])
+            AppLogger.shared.info("Visibilidade alternada para transação \(tx.id).", category: .business)
+            await loadTransactions(reset: true)
+        } catch let err as any AppErrorProtocol where isConnectionError(err) {
+            LocalDataManager.shared.markOfflineToggleVisibility(id: tx.id)
+            loadTransactionsFromLocalCache()
+            clearInvalidSelectedDayIfNeeded()
+            AppLogger.shared.warning("Sem conexão: alteração de visibilidade de \(tx.id) agendada na fila offline.", category: .database)
+        } catch let err as any AppErrorProtocol {
+            self.activeError = err
+            AppLogger.shared.error("Erro ao alternar visibilidade: \(err.errorDescription ?? err.localizedDescription)", category: .network)
+        } catch {
+            let unk = NetworkError.unknown(reason: error.localizedDescription)
+            self.activeError = unk
+            AppLogger.shared.error("Erro ao alternar visibilidade: \(error.localizedDescription)", category: .network)
+        }
     }
 }
