@@ -205,7 +205,7 @@ public struct HomeHubView: View {
         incomeLink.underlineStyle = .single
         incomeLink.font = .subheadline.bold()
 
-        var middle = AttributedString(" e lançamentos de ")
+        let middle = AttributedString(" e lançamentos de ")
 
         var expenseLink = AttributedString("GASTO")
         expenseLink.link = URL(string: "cofrinho-hub://launch/expense")
@@ -213,7 +213,7 @@ public struct HomeHubView: View {
         expenseLink.underlineStyle = .single
         expenseLink.font = .subheadline.bold()
 
-        var suffix = AttributedString(" para visualizar a movimentação do seu dinheiro.")
+        let suffix = AttributedString(" para visualizar a movimentação do seu dinheiro.")
 
         prefix.append(incomeLink)
         prefix.append(middle)
