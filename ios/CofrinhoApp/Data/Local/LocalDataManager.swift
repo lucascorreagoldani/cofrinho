@@ -68,6 +68,8 @@ public final class LocalDataManager {
                 existing.installmentGroupId = tx.installmentGroupId
                 existing.isModified = tx.isModified
                 existing.modifiedAt = tx.modifiedAt
+                existing.createdByUserId = tx.createdByUserId
+                existing.createdByUsername = tx.createdBy?.username
                 existing.updatedByUserId = tx.updatedByUserId
                 existing.updatedByUsername = tx.updatedBy?.username
                 existing.updatedByEmail = tx.updatedBy?.email
@@ -92,6 +94,8 @@ public final class LocalDataManager {
                     installmentGroupId: tx.installmentGroupId,
                     isModified: tx.isModified,
                     modifiedAt: tx.modifiedAt,
+                    createdByUserId: tx.createdByUserId,
+                    createdByUsername: tx.createdBy?.username,
                     updatedByUserId: tx.updatedByUserId,
                     updatedByUsername: tx.updatedBy?.username,
                     updatedByEmail: tx.updatedBy?.email,
@@ -166,7 +170,7 @@ public final class LocalDataManager {
             .map { $0.toModel() }
     }
 
-    /// Salva um novo gasto localmente quando o dispositivo estiver offline.
+    /// Salva um novo lançamento localmente quando o dispositivo estiver offline.
     @discardableResult
     public func saveOfflineTransaction(
         userId: Int,
@@ -177,6 +181,9 @@ public final class LocalDataManager {
         hasTime: Bool,
         category: CategoryModel,
         account: AccountModel,
+        type: String = TransactionType.expense.rawValue,
+        createdByUserId: Int? = nil,
+        createdByUsername: String? = nil,
         isInstallment: Bool = false,
         installmentsCount: Int = 1
     ) -> TransactionModel {
@@ -184,7 +191,7 @@ public final class LocalDataManager {
             userId: userId,
             categoryId: category.id,
             accountId: account.id,
-            type: TransactionType.expense.rawValue,
+            type: type,
             amount: amount,
             transactionDescription: description,
             notes: notes,
@@ -193,6 +200,8 @@ public final class LocalDataManager {
             status: RecordStatus.active.rawValue,
             isInstallment: isInstallment,
             totalInstallments: isInstallment ? installmentsCount : nil,
+            createdByUserId: createdByUserId ?? userId,
+            createdByUsername: createdByUsername,
             syncStatus: SyncStatus.pendingCreate.rawValue,
             categoryName: category.name,
             categoryIcon: category.icon,
@@ -205,7 +214,7 @@ public final class LocalDataManager {
 
         context.insert(local)
         try? context.save()
-        AppLogger.shared.info("Gasto registrado offline com sucesso (localId: \(local.localId)).", category: .database)
+        AppLogger.shared.info("Lançamento registrado offline com sucesso (localId: \(local.localId)).", category: .database)
         return local.toModel()
     }
 
@@ -400,6 +409,8 @@ public final class LocalDataManager {
                     }
 
                     item.serverId = created.id
+                    item.createdByUserId = created.createdByUserId
+                    item.createdByUsername = created.createdBy?.username
                     item.syncStatus = SyncStatus.synced.rawValue
                     item.updatedAt = created.updatedAt
                     try? context.save()
@@ -422,6 +433,8 @@ public final class LocalDataManager {
                         )
                         item.isModified = updated.isModified
                         item.modifiedAt = updated.modifiedAt
+                        item.createdByUserId = updated.createdByUserId
+                        item.createdByUsername = updated.createdBy?.username
                         item.updatedByUserId = updated.updatedByUserId
                         item.updatedByUsername = updated.updatedBy?.username
                         item.updatedByEmail = updated.updatedBy?.email

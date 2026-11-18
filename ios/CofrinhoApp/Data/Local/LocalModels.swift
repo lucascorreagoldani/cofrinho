@@ -22,6 +22,8 @@ public final class LocalTransaction {
     public var installmentGroupId: String?
     public var isModified: Bool = false
     public var modifiedAt: Int?
+    public var createdByUserId: Int?
+    public var createdByUsername: String?
     public var updatedByUserId: Int?
     public var updatedByUsername: String?
     public var updatedByEmail: String?
@@ -58,6 +60,8 @@ public final class LocalTransaction {
         installmentGroupId: String? = nil,
         isModified: Bool = false,
         modifiedAt: Int? = nil,
+        createdByUserId: Int? = nil,
+        createdByUsername: String? = nil,
         updatedByUserId: Int? = nil,
         updatedByUsername: String? = nil,
         updatedByEmail: String? = nil,
@@ -90,6 +94,8 @@ public final class LocalTransaction {
         self.installmentGroupId = installmentGroupId
         self.isModified = isModified
         self.modifiedAt = modifiedAt
+        self.createdByUserId = createdByUserId
+        self.createdByUsername = createdByUsername
         self.updatedByUserId = updatedByUserId
         self.updatedByUsername = updatedByUsername
         self.updatedByEmail = updatedByEmail
@@ -138,6 +144,14 @@ public final class LocalTransaction {
             )
         }
 
+        var createdByDTO: TransactionModifierUserDTO? = nil
+        if let createdByUsername {
+            createdByDTO = TransactionModifierUserDTO(
+                id: createdByUserId ?? userId,
+                username: createdByUsername
+            )
+        }
+
         var updatedByDTO: TransactionModifierUserDTO? = nil
         if let updatedByUserId, let updatedByUsername {
             updatedByDTO = TransactionModifierUserDTO(
@@ -167,6 +181,8 @@ public final class LocalTransaction {
             installmentGroupId: installmentGroupId,
             isModified: isModified,
             modifiedAt: modifiedAt,
+            createdByUserId: createdByUserId ?? userId,
+            createdBy: createdByDTO,
             updatedByUserId: updatedByUserId,
             updatedBy: updatedByDTO,
             createdAt: createdAt,

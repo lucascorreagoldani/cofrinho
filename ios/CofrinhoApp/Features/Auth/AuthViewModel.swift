@@ -362,6 +362,27 @@ public final class AuthViewModel {
         }
     }
 
+    public func updateDefaultTransactionType(_ type: TransactionType) async {
+        currentPreferences?.defaultTransactionType = type.rawValue
+        if let prefs = currentPreferences {
+            savePrefsToCache(prefs)
+        }
+        guard let token else { return }
+
+        do {
+            let updated = try await AuthAPIService.shared.updatePreferences(
+                token: token,
+                defaultTransactionType: type
+            )
+            self.currentPreferences = updated
+            savePrefsToCache(updated)
+        } catch let err as any AppErrorProtocol {
+            self.activeError = err
+        } catch {
+            self.activeError = NetworkError.unknown(reason: error.localizedDescription)
+        }
+    }
+
     public func logout() async {
         isLoading = true
         defer { isLoading = false }

@@ -17,22 +17,30 @@ public struct MainTabView: View {
     }
 
     public var body: some View {
-        TabView(selection: $selectedTab) {
-            // MARK: - Aba Início (Cadastro Rápido de Novo Gasto)
+        let preferredType = viewModel.currentPreferences?.defaultTransactionTypeEnum ?? .expense
+
+        return TabView(selection: $selectedTab) {
+            // MARK: - Aba Início (Cadastro Rápido de Novo Lançamento)
             NavigationStack {
-                NewExpenseView(token: viewModel.token ?? "")
+                NewExpenseView(
+                    token: viewModel.token ?? "",
+                    defaultType: preferredType
+                )
             }
             .tabItem {
-                Label("Novo Gasto", systemImage: "plus.circle.fill")
+                Label("Novo Lançamento", systemImage: "plus.circle.fill")
             }
             .tag(TabItem.home)
 
-            // MARK: - Aba Extrato (Lista Completa de Gastos, Filtro e Parcelas)
-            TransactionsListView(token: viewModel.token ?? "")
-                .tabItem {
-                    Label("Extrato", systemImage: "list.bullet.rectangle.portrait.fill")
-                }
-                .tag(TabItem.transactions)
+            // MARK: - Aba Extrato (Lista Completa de Lançamentos, Filtro e Parcelas)
+            TransactionsListView(
+                token: viewModel.token ?? "",
+                defaultTransactionType: preferredType
+            )
+            .tabItem {
+                Label("Extrato", systemImage: "list.bullet.rectangle.portrait.fill")
+            }
+            .tag(TabItem.transactions)
 
             // MARK: - Aba Metas (Cofrinhos Inteligentes)
             NavigationStack {

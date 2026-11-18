@@ -2,7 +2,7 @@ import { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { checkDatabaseConnection } from '../../database/postgres.js';
-import { checkRedisConnection } from '../../database/redis.js';
+import { checkRedisConnection, redis } from '../../database/redis.js';
 import {
   RecordStatus,
   TransactionFilterStatus,
@@ -69,7 +69,7 @@ export const publicRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       schema: {
         tags: ['Público'],
-        summary: 'Obter enums canônicos de domínio e valores padrão de inicialização',
+        summary: 'Obter enums canônicos de domínio, padrões de personalização e cache Redis',
         response: {
           200: z.object({
             enums: z.object({
@@ -101,12 +101,27 @@ export const publicRoutes: FastifyPluginAsyncZod = async (app) => {
                 })
               ),
             }),
+            personalization: z.object({
+              category_icons: z.array(z.string()),
+              account_icons: z.array(z.string()),
+              colors: z.array(z.string()),
+            }),
           }),
         },
       },
     },
     async () => {
-      return {
+      const cacheKey = 'cofrinho:public:enums';
+      try {
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          return JSON.parse(cached);
+        }
+      } catch {
+        /* Fallback resiliente se o Redis oscilar */
+      }
+
+      const payload = {
         enums: {
           record_status: Object.values(RecordStatus),
           transaction_filter_status: Object.values(TransactionFilterStatus),
@@ -123,7 +138,48 @@ export const publicRoutes: FastifyPluginAsyncZod = async (app) => {
             type: acc.type as string,
           })),
         },
+        personalization: {
+          category_icons: [
+            'cart.fill',
+            'fork.knife',
+            'car.fill',
+            'house.fill',
+            'gamecontroller.fill',
+            'heart.fill',
+            'graduationcap.fill',
+            'airplane',
+            'gift.fill',
+            'bag.fill',
+            'bolt.fill',
+            'tag.fill',
+          ],
+          account_icons: [
+            'creditcard.fill',
+            'building.columns.fill',
+            'wallet.pass.fill',
+            'bolt.horizontal.fill',
+            'banknote.fill',
+          ],
+          colors: [
+            '#FF9500',
+            '#34C759',
+            '#007AFF',
+            '#AF52DE',
+            '#FF3B30',
+            '#5856D6',
+            '#FF2D55',
+            '#00C7BE',
+          ],
+        },
       };
+
+      try {
+        await redis.set(cacheKey, JSON.stringify(payload), 'EX', 3600);
+      } catch {
+        /* Redis fallback */
+      }
+
+      return payload;
     }
   );
 

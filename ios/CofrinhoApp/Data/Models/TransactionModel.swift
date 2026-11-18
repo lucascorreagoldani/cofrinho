@@ -124,6 +124,8 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
     public var installmentGroupId: String?
     public var isModified: Bool
     public var modifiedAt: Int?
+    public var createdByUserId: Int?
+    public var createdBy: TransactionModifierUserDTO?
     public var updatedByUserId: Int?
     public var updatedBy: TransactionModifierUserDTO?
     public let createdAt: Int
@@ -149,6 +151,8 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
         case installmentGroupId = "installment_group_id"
         case isModified = "is_modified"
         case modifiedAt = "modified_at"
+        case createdByUserId = "created_by_user_id"
+        case createdBy = "created_by"
         case updatedByUserId = "updated_by_user_id"
         case updatedBy = "updated_by"
         case createdAt = "created_at"
@@ -175,6 +179,8 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
         installmentGroupId: String? = nil,
         isModified: Bool = false,
         modifiedAt: Int? = nil,
+        createdByUserId: Int? = nil,
+        createdBy: TransactionModifierUserDTO? = nil,
         updatedByUserId: Int? = nil,
         updatedBy: TransactionModifierUserDTO? = nil,
         createdAt: Int = Int(Date().timeIntervalSince1970 * 1000),
@@ -199,6 +205,8 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
         self.installmentGroupId = installmentGroupId
         self.isModified = isModified
         self.modifiedAt = modifiedAt
+        self.createdByUserId = createdByUserId
+        self.createdBy = createdBy
         self.updatedByUserId = updatedByUserId
         self.updatedBy = updatedBy
         self.createdAt = createdAt
@@ -235,6 +243,8 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
         self.installmentGroupId = try container.decodeIfPresent(String.self, forKey: .installmentGroupId)
         self.isModified = try container.decodeIfPresent(Bool.self, forKey: .isModified) ?? false
         self.modifiedAt = try container.decodeIfPresent(Int.self, forKey: .modifiedAt)
+        self.createdByUserId = try container.decodeIfPresent(Int.self, forKey: .createdByUserId)
+        self.createdBy = try container.decodeIfPresent(TransactionModifierUserDTO.self, forKey: .createdBy)
         self.updatedByUserId = try container.decodeIfPresent(Int.self, forKey: .updatedByUserId)
         self.updatedBy = try container.decodeIfPresent(TransactionModifierUserDTO.self, forKey: .updatedBy)
         self.createdAt = try container.decode(Int.self, forKey: .createdAt)
@@ -256,10 +266,28 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
         Date(timeIntervalSince1970: TimeInterval(date) / 1000.0)
     }
 
+    /// Objeto Date correspondente ao momento de criação do lançamento.
+    public var createdDateValue: Date {
+        Date(timeIntervalSince1970: TimeInterval(createdAt) / 1000.0)
+    }
+
     /// Objeto Date correspondente à data/hora da última modificação registrada.
     public var modifiedDateValue: Date? {
         guard isModified, let modifiedAt else { return nil }
         return Date(timeIntervalSince1970: TimeInterval(modifiedAt) / 1000.0)
+    }
+
+    /// Data e hora formatadas de criação em português do Brasil.
+    public var formattedCreatedDateTime: String {
+        createdDateValue.formatted(
+            .dateTime
+                .day(.twoDigits)
+                .month(.twoDigits)
+                .year()
+                .hour(.twoDigits(amPM: .omitted))
+                .minute(.twoDigits)
+                .locale(Locale(identifier: "pt_BR"))
+        )
     }
 
     /// Data e hora formatadas da última modificação em português do Brasil.
@@ -284,6 +312,18 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
     /// Data formatada amigável (DD/MM/AAAA) via FormatStyle nativo.
     public var formattedDate: String {
         dateValue.brShortDateFormatted
+    }
+
+    /// Data com horário opcional (DD/MM/AAAA • HH:mm) quando `hasTime` estiver ativo.
+    public var formattedDateWithOptionalTime: String {
+        guard hasTime else { return formattedDate }
+        let timeString = dateValue.formatted(
+            .dateTime
+                .hour(.twoDigits(amPM: .omitted))
+                .minute(.twoDigits)
+                .locale(Locale(identifier: "pt_BR"))
+        )
+        return "\(formattedDate) • \(timeString)"
     }
 
     /// Identificador visual da parcela (ex: "1/10")

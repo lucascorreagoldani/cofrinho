@@ -29,7 +29,11 @@ Este guia estabelece os padrões arquiteturais, convenções de chaves, estraté
 | Padrão de Chave | Tipo Redis | TTL Típico | Finalidade | Exemplo de Chave |
 | :--- | :--- | :--- | :--- | :--- |
 | `cofrinho:session:<sessionId>` | String (JSON) | 24h ou 7d | Validação instantânea de sessão (<1ms) | `cofrinho:session:7c3de013-fd6e-4aea-bdc0-ca38b74de90a` |
-| `cofrinho:user:<userId>:cache` | Hash / JSON | 1h | Cache de perfil de usuário e preferências | `cofrinho:user:1:cache` |
+| `cofrinho:user:<userId>:preferences` | String (JSON) | 1h | Cache de preferências (`fast_login`, `verification`, `default_transaction_type`) | `cofrinho:user:1:preferences` |
+| `cofrinho:user:<userId>:categories` | String (JSON) | 1h | Cache das categorias personalizadas do usuário | `cofrinho:user:1:categories` |
+| `cofrinho:user:<userId>:accounts` | String (JSON) | 1h | Cache das contas/cartões do usuário | `cofrinho:user:1:accounts` |
+| `cofrinho:user:<userId>:tx:<queryHash>` | String (JSON) | 60s | Cache de extratos paginados/filtrados | `cofrinho:user:1:tx:active:2026-11` |
+| `cofrinho:public:enums` | String (JSON) | 1h | Contratos públicos de ENUMs e ícones/cores de personalização | `cofrinho:public:enums` |
 | `cofrinho:ratelimit:<ip>:<route>` | Integer | 60s | Contador de rate limiting por janela | `cofrinho:ratelimit:198.89.99.42:login` |
 | `cofrinho:token:refresh:<tokenHash>` | String | 7d | Validação de blacklist e rotação de refresh token | `cofrinho:token:refresh:a1b2c3d4...` |
 
@@ -153,4 +157,14 @@ export const redis = new Redis(env.REDIS_URL, {
 - ❌ **NUNCA salve chaves sem namespace**: Chaves soltas como `session:123` geram colisão e poluição no cluster. Use sempre `cofrinho:session:123`.
 - ❌ **NUNCA salve timestamps como string ISO**: Datas como `"2026-11-06T12:00:00Z"` consomem mais memória e exigem parsing complexo. Use sempre `Date.now()`.
 - ❌ **NUNCA dê crash na aplicação se o Redis falhar**: Redis é cache e aceleração; a fonte da verdade relacional é o PostgreSQL. Trate exceções com `try/catch` e degrade com elegância.
+
+---
+
+## 6. Invalidação Síncrona de Cache com SCAN + PIPELINE DEL
+
+Em rotas mutadoras (`POST`, `PATCH`, `DELETE` de lançamentos, categorias, contas ou preferências), o cache do usuário deve ser invalidado **de forma síncrona (`await`) antes de responder ao cliente**, evitando leituras defasadas logo após uma edição ou exclusão:
+
+1. Para chaves exatas (`cofrinho:user:<userId>:preferences`, `:categories`, `:accounts`), execute `await redis.del(key)`.
+2. Para chaves prefixadas de listagens (`cofrinho:user:<userId>:tx:*`), itere com cursor `SCAN` (`MATCH`, `COUNT 100`) — nunca `KEYS` — e remova em lote via `pipeline.del(...)`.
+3. Proteja toda a invalidação no circuit breaker/try-catch para que uma indisponibilidade do Redis nunca aborte a transação confirmada no PostgreSQL.
 

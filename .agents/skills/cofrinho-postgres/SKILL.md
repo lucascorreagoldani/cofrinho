@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS users_preferences (
     user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     fast_login BOOLEAN NOT NULL DEFAULT true,
     verification BOOLEAN NOT NULL DEFAULT false,
+    default_transaction_type VARCHAR(20) NOT NULL DEFAULT 'expense' CHECK (default_transaction_type IN ('expense', 'income')),
     updated_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint
 );
 
@@ -166,4 +167,19 @@ const incidentId = await ErrorAuditor.log(error, {
 O driver `pg` retorna colunas `BIGINT` como strings JavaScript para evitar estouro de precisão acima de $2^{53} - 1$. No Cofrinho:
 - IDs e timestamps cabem confortavelmente dentro de `Number.MAX_SAFE_INTEGER` ($9 \times 10^{15}$, suficiente para IDs e timestamps até o ano 285420).
 - Converta explicitamente com `Number(row.id)` e `Number(row.registered_at)` antes de retornar à API ou validar com Zod.
+
+---
+
+## 6. Modelagem Financeira, Chaves (PK/FK) e Auditoria de Lançamentos
+
+- **Chaves Primárias & Estrangeiras**:
+  - Todas as tabelas de domínio (`categories`, `accounts`, `transactions`, `transaction_modifications`, `budgets`, `goals`) utilizam `id BIGSERIAL PRIMARY KEY`.
+  - Isolamento por usuário garantido via `user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE`, enquanto referências opcionais (`category_id`, `account_id`) usam `ON DELETE SET NULL` para preservar o histórico financeiro.
+- **Auditoria Completa de Autoria**:
+  - `transactions` registra obrigatoriamente tanto quem criou (`created_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL`, `created_at BIGINT`) quanto quem modificou por último (`updated_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL`, `updated_at BIGINT`).
+  - Edições gravam também snapshot imutável de estado anterior/novo na tabela `transaction_modifications` com `modified_by_user_id` e `modified_at`.
+  - **Privacidade no JOIN**: consultas de leitura (`LEFT JOIN users u_cre` e `LEFT JOIN users u_mod`) devem projetar exclusivamente `{ id, username }` para os campos de auditoria — **sem retornar e-mail**.
+- **ENUMs & Migrações Idempotentes**:
+  - Domínios fechados (`type IN ('expense', 'income')`, `status`, `frequency`) devem ser validados com `CHECK (...)` no SQL e schemas `z.enum(...)` na API.
+  - Novas colunas em `backend/src/database/schema.sql` devem incluir `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` e backfill idempotente para bases existentes.
 

@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import { sessionStatusSchema } from '../../shared/constants/enums.js';
+import {
+  TransactionType,
+  sessionStatusSchema,
+  transactionTypeSchema,
+} from '../../shared/constants/enums.js';
 
 export const userProfileSchema = z.object({
   id: z.number().int().positive().describe('ID numérico crescente (1, 2, 3...)'),
@@ -16,15 +20,23 @@ export const userPreferencesSchema = z.object({
   user_id: z.number().int().positive().describe('ID numérico do usuário'),
   fast_login: z.boolean(),
   verification: z.boolean(),
+  default_transaction_type: transactionTypeSchema.default(TransactionType.EXPENSE),
   updated_at: z.number().int().describe('Timestamp de atualização em epoch milissegundos'),
 });
 
 export const updatePreferencesBodySchema = z.object({
   fast_login: z.boolean().optional(),
   verification: z.boolean().optional(),
-}).refine(data => data.fast_login !== undefined || data.verification !== undefined, {
-  message: 'Pelo menos uma preferência deve ser informada para atualização',
-});
+  default_transaction_type: transactionTypeSchema.optional(),
+}).refine(
+  data =>
+    data.fast_login !== undefined ||
+    data.verification !== undefined ||
+    data.default_transaction_type !== undefined,
+  {
+    message: 'Pelo menos uma preferência deve ser informada para atualização',
+  }
+);
 
 /* Paginação com limites e cursores */
 export const sessionListQuerySchema = z.object({

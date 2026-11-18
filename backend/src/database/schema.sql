@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS users_preferences (
     user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     fast_login BOOLEAN NOT NULL DEFAULT true,      -- "Manter Logado"
     verification BOOLEAN NOT NULL DEFAULT false,   -- "Face ID e Touch ID"
+    default_transaction_type VARCHAR(20) NOT NULL DEFAULT 'expense' CHECK (default_transaction_type IN ('expense', 'income')),
     updated_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint
 );
 
@@ -130,6 +131,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     installment_group_id UUID,
     is_modified BOOLEAN NOT NULL DEFAULT false,
     modified_at BIGINT,
+    created_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
     updated_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
     created_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint,
     updated_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint
@@ -155,7 +157,10 @@ CREATE TABLE IF NOT EXISTS transaction_modifications (
 CREATE INDEX IF NOT EXISTS idx_tx_modifications_tx_id ON transaction_modifications(transaction_id, modified_at DESC);
 
 /* Migrações idempotentes para bancos existentes */
+ALTER TABLE users_preferences ADD COLUMN IF NOT EXISTS default_transaction_type VARCHAR(20) NOT NULL DEFAULT 'expense' CHECK (default_transaction_type IN ('expense', 'income'));
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS is_modified BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS modified_at BIGINT;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS created_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS updated_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
+UPDATE transactions SET created_by_user_id = user_id WHERE created_by_user_id IS NULL;

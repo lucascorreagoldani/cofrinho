@@ -35,14 +35,57 @@ public struct UserPreferencesDTO: Codable, Sendable {
     public let userId: Int
     public var fastLogin: Bool
     public var verification: Bool
+    public var defaultTransactionType: String?
     public let updatedAt: Int
 
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case fastLogin = "fast_login"
         case verification
+        case defaultTransactionType = "default_transaction_type"
         case updatedAt = "updated_at"
     }
+
+    public var defaultTransactionTypeEnum: TransactionType {
+        TransactionType(rawValue: defaultTransactionType ?? "") ?? .expense
+    }
+}
+
+public struct PublicServicesHealthDTO: Codable, Sendable {
+    public let postgres: String
+    public let redis: String
+}
+
+public struct PublicStatusDTO: Codable, Sendable {
+    public let status: String
+    public let version: String
+    public let environment: String
+    public let serverTimeMs: Int
+    public let services: PublicServicesHealthDTO
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case version
+        case environment
+        case serverTimeMs = "server_time_ms"
+        case services
+    }
+}
+
+public struct PublicEnumsPersonalizationDTO: Codable, Sendable {
+    public let categoryIcons: [String]
+    public let accountIcons: [String]
+    public let colors: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case categoryIcons = "category_icons"
+        case accountIcons = "account_icons"
+        case colors
+    }
+}
+
+public struct PublicEnumsCatalogDTO: Codable, Sendable {
+    public let personalization: PublicEnumsPersonalizationDTO?
 }
 
 public struct AuthSessionDTO: Codable, Sendable {
@@ -231,16 +274,44 @@ public final class AuthAPIService: Sendable {
         return try await client.request(endpoint)
     }
 
-    public func updatePreferences(token: String, fastLogin: Bool? = nil, verification: Bool? = nil) async throws -> UserPreferencesDTO {
+    public func updatePreferences(
+        token: String,
+        fastLogin: Bool? = nil,
+        verification: Bool? = nil,
+        defaultTransactionType: TransactionType? = nil
+    ) async throws -> UserPreferencesDTO {
         var payload: [String: Any] = [:]
         if let fastLogin { payload["fast_login"] = fastLogin }
         if let verification { payload["verification"] = verification }
+        if let defaultTransactionType { payload["default_transaction_type"] = defaultTransactionType.rawValue }
 
         let endpoint = try Endpoint(
             path: "/v1/users/me/preferences",
             method: .patch,
             token: token,
             jsonBody: payload
+        )
+        return try await client.request(endpoint)
+    }
+
+    // MARK: - API Pública de Utilitários (/v1/public)
+
+    public func fetchPublicStatus() async throws -> PublicStatusDTO {
+        let endpoint = Endpoint(
+            path: "/v1/public/status",
+            method: .get,
+            headers: nil,
+            timeoutInterval: 6
+        )
+        return try await client.request(endpoint)
+    }
+
+    public func fetchPublicEnums() async throws -> PublicEnumsCatalogDTO {
+        let endpoint = Endpoint(
+            path: "/v1/public/enums",
+            method: .get,
+            headers: nil,
+            timeoutInterval: 6
         )
         return try await client.request(endpoint)
     }

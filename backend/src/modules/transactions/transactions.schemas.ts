@@ -30,7 +30,6 @@ export const transactionAccountRelationSchema = z.object({
 export const transactionModifierUserSchema = z.object({
   id: z.number().int().positive(),
   username: z.string(),
-  email: z.string().optional(),
 });
 
 export const transactionResponseSchema = z.object({
@@ -53,6 +52,8 @@ export const transactionResponseSchema = z.object({
   installment_group_id: z.string().uuid().nullable().optional(),
   is_modified: z.boolean().default(false),
   modified_at: z.number().int().nullable().optional(),
+  created_by_user_id: z.number().int().positive().nullable().optional(),
+  created_by: transactionModifierUserSchema.nullable().optional(),
   updated_by_user_id: z.number().int().positive().nullable().optional(),
   updated_by: transactionModifierUserSchema.nullable().optional(),
   created_at: z.number().int(),

@@ -17,6 +17,13 @@ public final class NewExpenseViewModel {
     public var hasTime: Bool = false
     public var selectedCategory: CategoryModel?
     public var selectedAccount: AccountModel?
+    public var selectedType: TransactionType = .expense {
+        didSet {
+            if selectedType == .income {
+                isInstallmentsEnabled = false
+            }
+        }
+    }
     public var isInstallmentsEnabled: Bool = false
     public var installmentsCount: Int = 2
 
@@ -41,6 +48,7 @@ public final class NewExpenseViewModel {
     private let accountsAPI = AccountsAPIService.shared
     private let transactionsAPI = TransactionsAPIService.shared
     private let initialDate: Date?
+    private let defaultType: TransactionType
 
     private static var lastRemoteSyncTimestamp: TimeInterval = 0
     private static var cachedRemoteSuggestions: [SuggestionItemDTO] = []
@@ -50,9 +58,11 @@ public final class NewExpenseViewModel {
         cachedRemoteSuggestions = []
     }
 
-    public init(initialDate: Date? = nil) {
+    public init(initialDate: Date? = nil, defaultType: TransactionType = .expense) {
         self.initialDate = initialDate
+        self.defaultType = defaultType
         self.selectedDate = initialDate ?? Date()
+        self.selectedType = defaultType
     }
 
     // MARK: - Formatação Monetária
@@ -255,7 +265,15 @@ public final class NewExpenseViewModel {
         }
     }
 
-    // MARK: - Submissão do Gasto
+    private func cachedUserProfile() -> UserProfileDTO? {
+        guard let json = KeychainHelper.shared.read(key: "cofrinho_cached_user_json"),
+              let data = json.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(UserProfileDTO.self, from: data)
+    }
+
+    // MARK: - Submissão do Lançamento
     public func saveTransaction(token: String) async -> Bool {
         let trimmedDesc = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedDesc.isEmpty else {
@@ -271,7 +289,7 @@ public final class NewExpenseViewModel {
         }
 
         guard let category = selectedCategory else {
-            activeError = ValidationError.custom(message: "Por favor, selecione uma categoria para este gasto.")
+            activeError = ValidationError.custom(message: "Por favor, selecione uma categoria para este lançamento.")
             AppLogger.shared.warning("Validação falhou: Nenhuma categoria selecionada", category: .validation)
             return false
         }
@@ -285,9 +303,17 @@ public final class NewExpenseViewModel {
         isSaving = true
         defer { isSaving = false }
 
-        let dateEpochMs = Int(selectedDate.timeIntervalSince1970 * 1000)
+        let resolvedDate: Date = {
+            if hasTime {
+                return selectedDate
+            }
+            return Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: selectedDate) ?? selectedDate
+        }()
+
+        let dateEpochMs = Int(resolvedDate.timeIntervalSince1970 * 1000)
         let trimmedNotes = notesText.trimmingCharacters(in: .whitespacesAndNewlines)
         let optionalNotes: String? = trimmedNotes.isEmpty ? nil : trimmedNotes
+        let canInstallments = selectedType == .expense && isInstallmentsEnabled && account.allowsInstallments
 
         do {
             let created = try await transactionsAPI.createTransaction(
@@ -299,8 +325,8 @@ public final class NewExpenseViewModel {
                 hasTime: hasTime,
                 categoryId: category.id,
                 accountId: account.id,
-                type: "expense",
-                installmentsEnabled: isInstallmentsEnabled && account.allowsInstallments,
+                type: selectedType.rawValue,
+                installmentsEnabled: canInstallments,
                 installmentsCount: installmentsCount
             )
 
@@ -308,15 +334,20 @@ public final class NewExpenseViewModel {
             LocalDataManager.shared.cacheTransactions([created])
             Self.invalidateRemoteSyncCache()
 
-            successFeedback = isInstallmentsEnabled
-                ? "Gasto parcelado em \(installmentsCount)x cadastrado com sucesso!"
-                : "Gasto cadastrado com sucesso!"
+            if canInstallments {
+                successFeedback = "Gasto parcelado em \(installmentsCount)x cadastrado com sucesso!"
+            } else if selectedType == .income {
+                successFeedback = "Receita cadastrada com sucesso!"
+            } else {
+                successFeedback = "Gasto cadastrado com sucesso!"
+            }
             showSuccessAlert = true
             resetForm()
-            AppLogger.shared.info("Gasto registrado com sucesso: \(trimmedDesc)", category: .business)
+            AppLogger.shared.info("Lançamento registrado com sucesso: \(trimmedDesc) (\(selectedType.rawValue))", category: .business)
             return true
         } catch let netErr as NetworkError where isConnectionError(netErr) {
             // MARK: - Modo Offline Resiliente (SwiftData)
+            let cachedUser = cachedUserProfile()
             LocalDataManager.shared.saveOfflineTransaction(
                 userId: category.userId,
                 description: trimmedDesc,
@@ -326,24 +357,27 @@ public final class NewExpenseViewModel {
                 hasTime: hasTime,
                 category: category,
                 account: account,
-                isInstallment: isInstallmentsEnabled && account.allowsInstallments,
+                type: selectedType.rawValue,
+                createdByUserId: cachedUser?.id ?? category.userId,
+                createdByUsername: cachedUser?.username,
+                isInstallment: canInstallments,
                 installmentsCount: installmentsCount
             )
             Self.invalidateRemoteSyncCache()
 
-            successFeedback = "Gasto salvo no modo offline! Será sincronizado automaticamente assim que você se reconectar."
+            successFeedback = "Lançamento salvo no modo offline! Será sincronizado automaticamente assim que você se reconectar."
             showSuccessAlert = true
             resetForm()
-            AppLogger.shared.warning("Gasto salvo localmente em modo offline devido a falha de conexão.", category: .database)
+            AppLogger.shared.warning("Lançamento salvo localmente em modo offline devido a falha de conexão.", category: .database)
             return true
         } catch let err as any AppErrorProtocol {
             self.activeError = err
-            AppLogger.shared.error("Falha ao registrar gasto: \(err.errorDescription ?? err.localizedDescription)", category: .network)
+            AppLogger.shared.error("Falha ao registrar lançamento: \(err.errorDescription ?? err.localizedDescription)", category: .network)
             return false
         } catch {
             let unk = NetworkError.unknown(reason: error.localizedDescription)
             self.activeError = unk
-            AppLogger.shared.error("Erro inesperado ao registrar gasto: \(error.localizedDescription)", category: .network)
+            AppLogger.shared.error("Erro inesperado ao registrar lançamento: \(error.localizedDescription)", category: .network)
             return false
         }
     }
@@ -363,6 +397,8 @@ public final class NewExpenseViewModel {
         rawAmount = 0.0
         amountInputString = ""
         selectedDate = initialDate ?? Date()
+        hasTime = false
+        selectedType = defaultType
         isInstallmentsEnabled = false
         installmentsCount = 2
     }

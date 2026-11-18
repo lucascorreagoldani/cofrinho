@@ -19,8 +19,9 @@ Target: **iOS 17+ / iOS 18+**, **Swift 6+** with strict concurrency.
   - Decompose large views into small, focused sub-views (`struct MySubView: View`). Avoid large computed properties returning `some View`.
   - Use `NavigationStack` with `navigationDestination(for:)` for programmatic, type-safe navigation.
   - Use `containerRelativeFrame()` or `visualEffect()` instead of `GeometryReader` whenever possible.
-  - Use `Tab` API instead of legacy `tabItem()`.
+  - Prefer `Tab` API when targeting iOS 18+, keeping `.tabItem()` while deployment target supports iOS 17+ (`ios/project.yml`).
   - Use `.scrollIndicators(.hidden)` rather than initializer arguments.
+  - Enforce semantic destructive/edit action colors across UI surfaces: `Color.orange` for **Edit** actions and `Color.red` for **Delete** actions.
 - **Formatting & Strings**:
   - Never use `String(format: "%.2f", ...)`. Always use `FormatStyle`: e.g. `value.formatted(.number.precision(.fractionLength(2)))` or `date.formatted(date: .abbreviated, time: .shortened)`.
   - Use `localizedStandardContains()` for user search filtering.

@@ -89,11 +89,7 @@ public struct TransactionDetailSheetView: View {
                     } else {
                         heroHeaderCard
                         generalInfoCard
-
-                        if transaction.isModified {
-                            modificationAuditCard
-                        }
-
+                        auditTrailCard
                         notesCard
 
                         if transaction.isInstallment {
@@ -108,7 +104,7 @@ public struct TransactionDetailSheetView: View {
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(isEditingFull ? "Editar Lançamento" : "Detalhes do Gasto")
+            .navigationTitle(isEditingFull ? "Editar Lançamento" : "Detalhes do Lançamento")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -126,6 +122,7 @@ public struct TransactionDetailSheetView: View {
                         } label: {
                             Label("Editar", systemImage: "pencil")
                         }
+                        .foregroundStyle(Color.orange)
                         .disabled(isPerformingAction)
                     }
                 }
@@ -411,58 +408,109 @@ public struct TransactionDetailSheetView: View {
         .shadow(color: Color.black.opacity(0.03), radius: 6, y: 2)
     }
 
-    private var modificationAuditCard: some View {
-        let modifiedDateText = transaction.formattedModifiedDateTime ?? "Registrada"
+    private var auditTrailCard: some View {
+        let fallbackUser = cachedProfileUser()
+        let creatorDisplay: String = {
+            if let creator = transaction.createdBy {
+                return "@\(creator.username)"
+            }
+            if let creatorId = transaction.createdByUserId {
+                if let fallback = fallbackUser, fallback.id == creatorId {
+                    return "@\(fallback.username)"
+                }
+                return "@usuario_\(creatorId)"
+            }
+            if let fallback = fallbackUser, fallback.id == transaction.userId {
+                return "@\(fallback.username)"
+            }
+            return "@usuario_\(transaction.userId)"
+        }()
+
         let modifierDisplay: String = {
             if let user = transaction.updatedBy {
-                if let email = user.email, !email.isEmpty {
-                    return "@\(user.username) (\(email))"
-                }
                 return "@\(user.username)"
             }
             if let uid = transaction.updatedByUserId {
-                return "Usuário #\(uid)"
+                if let fallback = fallbackUser, fallback.id == uid {
+                    return "@\(fallback.username)"
+                }
+                return "@usuario_\(uid)"
+            }
+            if let fallback = fallbackUser {
+                return "@\(fallback.username)"
             }
             return "Usuário autenticado"
         }()
 
+        let modifiedDateText = transaction.formattedModifiedDateTime ?? "Registrada"
+
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("REGISTRO DE MODIFICAÇÃO", systemImage: "clock.arrow.circlepath")
+                Label("REGISTRO & AUDITORIA", systemImage: "clock.arrow.circlepath")
                     .font(.caption.bold())
-                    .foregroundStyle(Color.orange)
+                    .foregroundStyle(transaction.isModified ? Color.orange : Color.secondary)
                 Spacer()
-                Text("Editado")
-                    .font(.caption2.bold())
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color.orange.opacity(0.14))
-                    .foregroundStyle(Color.orange)
-                    .clipShape(.rect(cornerRadius: 6))
+                if transaction.isModified {
+                    Text("Modificado")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.orange.opacity(0.14))
+                        .foregroundStyle(Color.orange)
+                        .clipShape(.rect(cornerRadius: 6))
+                } else {
+                    Text("Original")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.secondary.opacity(0.12))
+                        .foregroundStyle(Color.secondary)
+                        .clipShape(.rect(cornerRadius: 6))
+                }
             }
 
             detailRow(
-                icon: "calendar.badge.clock",
-                iconColor: .orange,
-                label: "Data da Modificação",
-                value: modifiedDateText
+                icon: "person.badge.plus",
+                iconColor: .blue,
+                label: "Adicionado por",
+                value: creatorDisplay
             )
 
             Divider()
 
             detailRow(
-                icon: "person.crop.circle.badge.checkmark",
+                icon: "calendar.badge.plus",
                 iconColor: .blue,
-                label: "Modificado por",
-                value: modifierDisplay
+                label: "Criado em",
+                value: transaction.formattedCreatedDateTime
             )
+
+            if transaction.isModified {
+                Divider()
+
+                detailRow(
+                    icon: "person.crop.circle.badge.checkmark",
+                    iconColor: .orange,
+                    label: "Modificado por",
+                    value: modifierDisplay
+                )
+
+                Divider()
+
+                detailRow(
+                    icon: "calendar.badge.clock",
+                    iconColor: .orange,
+                    label: "Data da Modificação",
+                    value: modifiedDateText
+                )
+            }
         }
         .padding(16)
         .background(Color(.systemBackground))
         .clipShape(.rect(cornerRadius: 16))
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.orange.opacity(0.25), lineWidth: 1)
+                .stroke(transaction.isModified ? Color.orange.opacity(0.25) : Color.clear, lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.03), radius: 6, y: 2)
     }
@@ -477,12 +525,13 @@ public struct TransactionDetailSheetView: View {
                 Spacer()
 
                 if !isEditingNotes {
-                    Button(transaction.notes == nil || transaction.notes?.isEmpty == true ? "Adicionar" : "Editar") {
+                    let hasNotes = !(transaction.notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+                    Button(hasNotes ? "Editar" : "Adicionar") {
                         draftNotes = transaction.notes ?? ""
                         isEditingNotes = true
                     }
                     .font(.caption.bold())
-                    .foregroundStyle(Color.blue)
+                    .foregroundStyle(hasNotes ? Color.orange : Color.blue)
                 }
             }
 
@@ -688,8 +737,8 @@ public struct TransactionDetailSheetView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
-                .background(Color.blue.opacity(0.12))
-                .foregroundStyle(Color.blue)
+                .background(Color.orange.opacity(0.14))
+                .foregroundStyle(Color.orange)
                 .clipShape(.rect(cornerRadius: 12))
             }
             .disabled(isPerformingAction)
@@ -725,7 +774,7 @@ public struct TransactionDetailSheetView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(Color.red.opacity(0.12))
+                    .background(Color.red.opacity(0.14))
                     .foregroundStyle(Color.red)
                     .clipShape(.rect(cornerRadius: 12))
                 }
@@ -1320,8 +1369,7 @@ public struct TransactionDetailSheetView: View {
             transaction.updatedByUserId = profile.id
             transaction.updatedBy = TransactionModifierUserDTO(
                 id: profile.id,
-                username: profile.username,
-                email: profile.email
+                username: profile.username
             )
         }
         draftNotes = notes ?? ""

@@ -6,6 +6,7 @@ import SwiftUI
 /// salto direto para qualquer mês/ano e sincronização offline com SwiftData.
 public struct TransactionsListView: View {
     let token: String
+    let defaultTransactionType: TransactionType
 
     @State private var transactions: [TransactionModel] = []
     @State private var isLoading: Bool = false
@@ -50,8 +51,9 @@ public struct TransactionsListView: View {
 
     @State private var activeError: (any AppErrorProtocol)?
 
-    public init(token: String) {
+    public init(token: String, defaultTransactionType: TransactionType = .expense) {
         self.token = token
+        self.defaultTransactionType = defaultTransactionType
     }
 
     private var hasActiveFilters: Bool {
@@ -176,15 +178,16 @@ public struct TransactionsListView: View {
                                     } label: {
                                         Label("Editar", systemImage: "pencil")
                                     }
-                                    .tint(Color.blue)
+                                    .tint(Color.orange)
                                 }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    // Ação Primária: Excluir com Full Swipe
+                                    // Ação Primária: Excluir com Full Swipe (sempre Vermelho)
                                     Button(role: .destructive) {
                                         prepareDelete(tx)
                                     } label: {
                                         Label("Excluir", systemImage: "trash.fill")
                                     }
+                                    .tint(Color.red)
 
                                     // Ação Secundária: Ocultar / Desocultar
                                     Button {
@@ -301,6 +304,7 @@ public struct TransactionsListView: View {
                     NewExpenseView(
                         token: token,
                         initialDate: newExpenseInitialDate,
+                        defaultType: defaultTransactionType,
                         onSaved: {
                             didCreateExpenseInSheet = true
                             showNewExpenseSheet = false
@@ -636,15 +640,28 @@ public struct TransactionsListView: View {
 
     private var monthlySummaryCard: some View {
         let targetItems = displayedTransactions
-        let regularExpenses = targetItems.filter { !$0.isInstallment }
-        let installmentExpenses = targetItems.filter { $0.isInstallment }
+        let incomes = targetItems.filter { $0.typeEnum == .income }
+        let expenses = targetItems.filter { $0.typeEnum == .expense }
+        let regularExpenses = expenses.filter { !$0.isInstallment }
+        let installmentExpenses = expenses.filter { $0.isInstallment }
+        let incomesTotal = incomes.reduce(Decimal(0)) { $0 + $1.amount }
         let regularTotal = regularExpenses.reduce(Decimal(0)) { $0 + $1.amount }
         let installmentTotal = installmentExpenses.reduce(Decimal(0)) { $0 + $1.amount }
-        let total = regularTotal + installmentTotal
+        let expensesTotal = regularTotal + installmentTotal
+        let hasIncomes = !incomes.isEmpty
+        let netBalance = incomesTotal - expensesTotal
+        let primaryAmount = hasIncomes ? netBalance : expensesTotal
+        let primaryColor: Color = hasIncomes ? (netBalance >= 0 ? .green : .red) : .red
 
         let summaryLabel: String = {
+            if hasIncomes {
+                if let day = selectedDay {
+                    return String(format: "Saldo no Dia %02d/%02d", day, selectedMonth)
+                }
+                return "Saldo do Mês"
+            }
             if let day = selectedDay {
-                return String(format: "Total no Dia %02d/%02d", day, selectedMonth)
+                return String(format: "Total Gasto no Dia %02d/%02d", day, selectedMonth)
             }
             if installmentTotal > 0 && regularTotal == 0 {
                 return "Comprometido no Mês (Parcelas)"
@@ -658,40 +675,52 @@ public struct TransactionsListView: View {
                     Text(summaryLabel)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
-                    Text(total.brlCurrencyFormatted)
+                    Text(primaryAmount.brlCurrencyFormatted)
                         .font(.title2.bold())
-                        .foregroundStyle(Color.red)
+                        .foregroundStyle(primaryColor)
                 }
                 Spacer()
-                Image(systemName: installmentTotal > 0 ? "creditcard.and.123" : "chart.line.uptrend.xyaxis")
+                Image(systemName: hasIncomes ? "chart.bar.doc.horizontal" : (installmentTotal > 0 ? "creditcard.and.123" : "chart.line.uptrend.xyaxis"))
                     .font(.system(size: 28))
-                    .foregroundStyle(Color.red.opacity(0.8))
+                    .foregroundStyle(primaryColor.opacity(0.8))
             }
 
-            // Discriminação dos valores das parcelas nos extratos futuros
-            if installmentTotal > 0 {
+            if hasIncomes || installmentTotal > 0 {
                 Divider()
                     .padding(.vertical, 2)
 
                 HStack(spacing: 12) {
-                    if regularTotal > 0 {
+                    if hasIncomes {
                         HStack(spacing: 4) {
-                            Image(systemName: "banknote")
+                            Image(systemName: "arrow.down.circle.fill")
                                 .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text("À vista: \(regularTotal.brlCurrencyFormatted)")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(Color.green)
+                            Text("Receitas: +\(incomesTotal.brlCurrencyFormatted)")
+                                .font(.caption.bold())
+                                .foregroundStyle(Color.green)
                         }
                     }
 
-                    HStack(spacing: 4) {
-                        Image(systemName: "creditcard")
-                            .font(.caption2)
-                            .foregroundStyle(Color.blue)
-                        Text("Parcelas: \(installmentTotal.brlCurrencyFormatted) (\(installmentExpenses.count)x)")
-                            .font(.caption.bold())
-                            .foregroundStyle(Color.blue)
+                    if expensesTotal > 0 && (hasIncomes || installmentTotal > 0) {
+                        HStack(spacing: 4) {
+                            Image(systemName: hasIncomes ? "arrow.up.circle.fill" : "banknote")
+                                .font(.caption2)
+                                .foregroundStyle(hasIncomes ? Color.red : .secondary)
+                            Text(hasIncomes ? "Gastos: -\(expensesTotal.brlCurrencyFormatted)" : "À vista: \(regularTotal.brlCurrencyFormatted)")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(hasIncomes ? Color.red : .secondary)
+                        }
+                    }
+
+                    if installmentTotal > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "creditcard")
+                                .font(.caption2)
+                                .foregroundStyle(Color.blue)
+                            Text("Parcelas: \(installmentTotal.brlCurrencyFormatted) (\(installmentExpenses.count)x)")
+                                .font(.caption.bold())
+                                .foregroundStyle(Color.blue)
+                        }
                     }
 
                     Spacer()
@@ -709,6 +738,7 @@ public struct TransactionsListView: View {
 
     private func transactionRow(_ tx: TransactionModel) -> some View {
         let isHidden = tx.statusEnum == .hidden
+        let isIncome = tx.typeEnum == .income
         let categoryColor = Color(hex: tx.category?.color ?? "#FF9500")
         let hasNotes = !(tx.notes?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
 
@@ -778,7 +808,7 @@ public struct TransactionsListView: View {
                 }
 
                 HStack(spacing: 6) {
-                    Text(tx.formattedDate)
+                    Text(tx.formattedDateWithOptionalTime)
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
@@ -798,9 +828,9 @@ public struct TransactionsListView: View {
 
             // Valor + Indicador de expansão de detalhes
             HStack(spacing: 6) {
-                Text(tx.formattedAmount)
+                Text(isIncome ? "+\(tx.formattedAmount)" : tx.formattedAmount)
                     .font(.callout.bold())
-                    .foregroundStyle(isHidden ? Color.secondary : Color.red)
+                    .foregroundStyle(isHidden ? Color.secondary : (isIncome ? Color.green : Color.red))
 
                 Image(systemName: "chevron.right")
                     .font(.caption2.weight(.semibold))
@@ -814,15 +844,15 @@ public struct TransactionsListView: View {
     private var emptyStateView: some View {
         let emptyTitle: String = {
             if hasActiveFilters {
-                return "Nenhum gasto com os filtros atuais"
+                return "Nenhum lançamento com os filtros atuais"
             }
             if let day = selectedDay {
                 if isCurrentMonthAndYear && day == todayDay {
-                    return String(format: "Nenhum gasto hoje (%02d/%02d)", day, selectedMonth)
+                    return String(format: "Nenhum lançamento hoje (%02d/%02d)", day, selectedMonth)
                 }
-                return String(format: "Nenhum gasto no Dia %02d/%02d", day, selectedMonth)
+                return String(format: "Nenhum lançamento no Dia %02d/%02d", day, selectedMonth)
             }
-            return "Nenhum gasto neste mês"
+            return "Nenhum lançamento neste mês"
         }()
 
         let emptySubtitle: String = {
@@ -830,9 +860,9 @@ public struct TransactionsListView: View {
                 return "Tente redefinir os filtros ou deslize para os lados para navegar entre os dias e meses."
             }
             if selectedDay != nil {
-                return "Deslize para os lados para ver outros dias, toque em 'Mês Inteiro' ou adicione um novo gasto."
+                return "Deslize para os lados para ver outros dias, toque em 'Mês Inteiro' ou adicione um novo lançamento."
             }
-            return "Toque no botão abaixo para adicionar seu primeiro gasto ou deslize para os lados para navegar."
+            return "Toque no botão abaixo para adicionar seu primeiro lançamento ou deslize para os lados para navegar."
         }()
 
         return VStack(spacing: 16) {
@@ -873,7 +903,7 @@ public struct TransactionsListView: View {
                     newExpenseSheetSessionId = UUID()
                     showNewExpenseSheet = true
                 } label: {
-                    Text("+ Adicionar Gasto")
+                    Text("+ Adicionar Lançamento")
                         .font(.headline)
                         .foregroundStyle(.white)
                         .padding(.horizontal, 24)

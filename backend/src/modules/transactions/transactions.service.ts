@@ -15,6 +15,24 @@ import {
 } from './transactions.schemas.js';
 
 export class TransactionsService {
+  private readonly joinedTransactionSelectSql = `
+    SELECT
+      t.id, t.user_id, t.category_id, t.account_id, t.type, t.amount, t.description, t.notes,
+      t.date, t.has_time, t.status, t.is_installment, t.installment_number,
+      t.total_installments, t.installment_group_id,
+      t.is_modified, t.modified_at, t.created_by_user_id, t.updated_by_user_id,
+      t.created_at, t.updated_at,
+      c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
+      a.name AS account_name, a.type AS account_type, a.icon AS account_icon, a.color AS account_color,
+      u_cre.username AS created_by_username,
+      u_mod.username AS updated_by_username
+    FROM transactions t
+    JOIN categories c ON c.id = t.category_id
+    JOIN accounts a ON a.id = t.account_id
+    LEFT JOIN users u_cre ON u_cre.id = COALESCE(t.created_by_user_id, t.user_id)
+    LEFT JOIN users u_mod ON u_mod.id = t.updated_by_user_id
+  `;
+
   private getTxCachePrefix(userId: number): string {
     return `cofrinho:user:${userId}:tx`;
   }
@@ -59,6 +77,15 @@ export class TransactionsService {
         throw new NotFoundError('Conta informada não existe ou foi removida.');
       }
       const account = accResult.rows[0];
+
+      const creatorResult = await client.query(
+        `SELECT id, username FROM users WHERE id = $1`,
+        [userId]
+      );
+      const createdBy =
+        creatorResult.rows.length > 0
+          ? { id: Number(creatorResult.rows[0].id), username: creatorResult.rows[0].username }
+          : { id: userId, username: 'usuario' };
 
       const nowTimestamp = Date.now();
       const cleanNotes = data.notes && data.notes.trim().length > 0 ? data.notes.trim() : null;
@@ -108,14 +135,15 @@ export class TransactionsService {
 
           const insertQuery = `
             INSERT INTO transactions (
-              user_id, category_id, account_id, type, amount, description, notes,
+              user_id, created_by_user_id, category_id, account_id, type, amount, description, notes,
               date, has_time, status, is_installment, installment_number,
               total_installments, installment_group_id, created_at, updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', true, $10, $11, $12, $13, $13)
-            RETURNING id, user_id, category_id, account_id, type, amount, description, notes,
+            VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', true, $10, $11, $12, $13, $13)
+            RETURNING id, user_id, created_by_user_id, category_id, account_id, type, amount, description, notes,
                       date, has_time, status, is_installment, installment_number,
-                      total_installments, installment_group_id, created_at, updated_at
+                      total_installments, installment_group_id,
+                      is_modified, modified_at, updated_by_user_id, created_at, updated_at
           `;
 
           const rowResult = await client.query(insertQuery, [
@@ -135,7 +163,7 @@ export class TransactionsService {
           ]);
 
           createdTransactions.push(
-            this.mapTransactionRow(rowResult.rows[0], category, account)
+            this.mapTransactionRow(rowResult.rows[0], category, account, createdBy, null)
           );
         }
 
@@ -149,13 +177,14 @@ export class TransactionsService {
       /* Transação Simples (À Vista) */
       const insertQuery = `
         INSERT INTO transactions (
-          user_id, category_id, account_id, type, amount, description, notes,
+          user_id, created_by_user_id, category_id, account_id, type, amount, description, notes,
           date, has_time, status, is_installment, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', false, $10, $10)
-        RETURNING id, user_id, category_id, account_id, type, amount, description, notes,
+        VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', false, $10, $10)
+        RETURNING id, user_id, created_by_user_id, category_id, account_id, type, amount, description, notes,
                   date, has_time, status, is_installment, installment_number,
-                  total_installments, installment_group_id, created_at, updated_at
+                  total_installments, installment_group_id,
+                  is_modified, modified_at, updated_by_user_id, created_at, updated_at
       `;
 
       const result = await client.query(insertQuery, [
@@ -174,7 +203,7 @@ export class TransactionsService {
       await client.query('COMMIT');
       await this.invalidateUserTransactionsCache(userId);
 
-      return this.mapTransactionRow(result.rows[0], category, account);
+      return this.mapTransactionRow(result.rows[0], category, account, createdBy, null);
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -233,19 +262,7 @@ export class TransactionsService {
     values.push(offset);
 
     const query = `
-      SELECT
-        t.id, t.user_id, t.category_id, t.account_id, t.type, t.amount, t.description, t.notes,
-        t.date, t.has_time, t.status, t.is_installment, t.installment_number,
-        t.total_installments, t.installment_group_id,
-        t.is_modified, t.modified_at, t.updated_by_user_id,
-        t.created_at, t.updated_at,
-        c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
-        a.name AS account_name, a.type AS account_type, a.icon AS account_icon, a.color AS account_color,
-        u_mod.username AS updated_by_username, u_mod.email AS updated_by_email
-      FROM transactions t
-      JOIN categories c ON c.id = t.category_id
-      JOIN accounts a ON a.id = t.account_id
-      LEFT JOIN users u_mod ON u_mod.id = t.updated_by_user_id
+      ${this.joinedTransactionSelectSql}
       WHERE ${conditions.join(' AND ')}
       ORDER BY t.date DESC, t.id DESC
       LIMIT $${idx++} OFFSET $${idx}
@@ -279,19 +296,7 @@ export class TransactionsService {
     }
 
     const query = `
-      SELECT
-        t.id, t.user_id, t.category_id, t.account_id, t.type, t.amount, t.description, t.notes,
-        t.date, t.has_time, t.status, t.is_installment, t.installment_number,
-        t.total_installments, t.installment_group_id,
-        t.is_modified, t.modified_at, t.updated_by_user_id,
-        t.created_at, t.updated_at,
-        c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
-        a.name AS account_name, a.type AS account_type, a.icon AS account_icon, a.color AS account_color,
-        u_mod.username AS updated_by_username, u_mod.email AS updated_by_email
-      FROM transactions t
-      JOIN categories c ON c.id = t.category_id
-      JOIN accounts a ON a.id = t.account_id
-      LEFT JOIN users u_mod ON u_mod.id = t.updated_by_user_id
+      ${this.joinedTransactionSelectSql}
       WHERE t.user_id = $1
         AND t.installment_group_id = $2
         AND t.status != '${RecordStatus.DELETED}'
@@ -764,19 +769,7 @@ export class TransactionsService {
     transactionId: number
   ) {
     const query = `
-      SELECT
-        t.id, t.user_id, t.category_id, t.account_id, t.type, t.amount, t.description, t.notes,
-        t.date, t.has_time, t.status, t.is_installment, t.installment_number,
-        t.total_installments, t.installment_group_id,
-        t.is_modified, t.modified_at, t.updated_by_user_id,
-        t.created_at, t.updated_at,
-        c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
-        a.name AS account_name, a.type AS account_type, a.icon AS account_icon, a.color AS account_color,
-        u_mod.username AS updated_by_username, u_mod.email AS updated_by_email
-      FROM transactions t
-      JOIN categories c ON c.id = t.category_id
-      JOIN accounts a ON a.id = t.account_id
-      LEFT JOIN users u_mod ON u_mod.id = t.updated_by_user_id
+      ${this.joinedTransactionSelectSql}
       WHERE t.id = $1 AND t.user_id = $2
     `;
 
@@ -808,12 +801,20 @@ export class TransactionsService {
   }
 
   private mapJoinedTransactionRow(row: any) {
+    const creatorId = Number(row.created_by_user_id ?? row.user_id);
+    const createdBy =
+      row.created_by_username
+        ? {
+            id: creatorId,
+            username: row.created_by_username,
+          }
+        : null;
+
     const updatedBy =
       row.updated_by_user_id && row.updated_by_username
         ? {
             id: Number(row.updated_by_user_id),
             username: row.updated_by_username,
-            email: row.updated_by_email ?? undefined,
           }
         : null;
 
@@ -832,11 +833,16 @@ export class TransactionsService {
         icon: row.account_icon,
         color: row.account_color,
       },
+      createdBy,
       updatedBy
     );
   }
 
-  private mapTransactionRow(row: any, category?: any, account?: any, updatedBy?: any) {
+  private mapTransactionRow(row: any, category?: any, account?: any, createdBy?: any, updatedBy?: any) {
+    const resolvedCreatedByUserId = row.created_by_user_id
+      ? Number(row.created_by_user_id)
+      : Number(row.user_id);
+
     return {
       id: Number(row.id),
       user_id: Number(row.user_id),
@@ -872,6 +878,8 @@ export class TransactionsService {
       installment_group_id: row.installment_group_id || null,
       is_modified: Boolean(row.is_modified),
       modified_at: row.modified_at ? Number(row.modified_at) : null,
+      created_by_user_id: resolvedCreatedByUserId,
+      created_by: createdBy ?? null,
       updated_by_user_id: row.updated_by_user_id ? Number(row.updated_by_user_id) : null,
       updated_by: updatedBy ?? null,
       created_at: Number(row.created_at),

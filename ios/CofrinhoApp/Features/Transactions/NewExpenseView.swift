@@ -15,27 +15,46 @@ public struct NewExpenseView: View {
 
     @FocusState private var focusedField: FormField?
 
-    public init(token: String, initialDate: Date? = nil, onSaved: (() -> Void)? = nil) {
+    public init(
+        token: String,
+        initialDate: Date? = nil,
+        defaultType: TransactionType = .expense,
+        onSaved: (() -> Void)? = nil
+    ) {
         self.token = token
         self.onSaved = onSaved
-        self._viewModel = State(initialValue: NewExpenseViewModel(initialDate: initialDate))
+        self._viewModel = State(initialValue: NewExpenseViewModel(initialDate: initialDate, defaultType: defaultType))
     }
 
     public var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // MARK: - Card Principal "Novo Gasto"
+                // MARK: - Card Principal "Novo Lançamento"
                 VStack(alignment: .leading, spacing: 18) {
                     // Cabeçalho do Card
                     HStack(spacing: 8) {
-                        Text("💸")
+                        Text(viewModel.selectedType == .income ? "💰" : "💸")
                             .font(.system(size: 22))
 
-                        Text("Novo Gasto")
+                        Text("Novo Lançamento")
                             .font(.title3.weight(.bold))
                             .foregroundStyle(.primary)
 
                         Spacer()
+                    }
+
+                    // Seletor Canônico GASTO | RECEITA via Enum TransactionType
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Tipo de Lançamento")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        Picker("Tipo", selection: $viewModel.selectedType) {
+                            ForEach(TransactionType.allCases) { itemType in
+                                Text(itemType.localizedName.uppercased()).tag(itemType)
+                            }
+                        }
+                        .pickerStyle(.segmented)
                     }
 
                     // LINHA 1: Descrição e Valor (R$)
@@ -238,30 +257,66 @@ public struct NewExpenseView: View {
                         .frame(minWidth: 0, maxWidth: .infinity)
                     }
 
-                    // LINHA 3: Data do Gasto com DatePicker em tamanho intrínseco (evita restrições negativas de layout)
-                    HStack(spacing: 10) {
-                        HStack(spacing: 6) {
-                            Text("📅")
-                                .font(.subheadline)
-                            Text("Data do Gasto")
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(.secondary)
+                    // LINHA 3: Data e Horário Opcional do Lançamento
+                    VStack(spacing: 10) {
+                        HStack(spacing: 10) {
+                            HStack(spacing: 6) {
+                                Text("📅")
+                                    .font(.subheadline)
+                                Text("Data do Lançamento")
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            DatePicker(
+                                "",
+                                selection: $viewModel.selectedDate,
+                                displayedComponents: [.date]
+                            )
+                            .labelsHidden()
+                            .datePickerStyle(.compact)
                         }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(.rect(cornerRadius: 10))
 
-                        Spacer()
+                        VStack(spacing: 8) {
+                            Toggle("Incluir horário específico", isOn: $viewModel.hasTime)
+                                .font(.subheadline.weight(.medium))
+                                .tint(Color.blue)
 
-                        DatePicker(
-                            "",
-                            selection: $viewModel.selectedDate,
-                            displayedComponents: [.date]
-                        )
-                        .labelsHidden()
-                        .datePickerStyle(.compact)
+                            if viewModel.hasTime {
+                                Divider()
+                                HStack {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "clock")
+                                            .font(.subheadline)
+                                            .foregroundStyle(Color.blue)
+                                        Text("Horário")
+                                            .font(.subheadline.weight(.medium))
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer()
+
+                                    DatePicker(
+                                        "",
+                                        selection: $viewModel.selectedDate,
+                                        displayedComponents: [.hourAndMinute]
+                                    )
+                                    .labelsHidden()
+                                    .datePickerStyle(.compact)
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(.rect(cornerRadius: 10))
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(.rect(cornerRadius: 10))
 
                     // LINHA 3.5: Observação Opcional do Lançamento
                     VStack(alignment: .leading, spacing: 6) {
@@ -291,8 +346,8 @@ public struct NewExpenseView: View {
                             )
                     }
 
-                    // LINHA 4: Seção de Parcelamento (Ativa dinamicamente se a conta permitir)
-                    if let account = viewModel.selectedAccount, account.allowsInstallments {
+                    // LINHA 4: Seção de Parcelamento (Ativa apenas para Gasto em conta que permite parcelar)
+                    if viewModel.selectedType == .expense, let account = viewModel.selectedAccount, account.allowsInstallments {
                         VStack(alignment: .leading, spacing: 12) {
                             Toggle(isOn: $viewModel.isInstallmentsEnabled) {
                                 HStack(spacing: 6) {
@@ -352,7 +407,7 @@ public struct NewExpenseView: View {
                         .clipShape(.rect(cornerRadius: 12))
                     }
 
-                    // LINHA 4: Botão de Ação "+ Adicionar Gasto"
+                    // LINHA 5: Botão de Ação Principal ("+ Adicionar Gasto" / "+ Adicionar Receita")
                     Button {
                         let haptic = UIImpactFeedbackGenerator(style: .medium)
                         haptic.impactOccurred()
@@ -363,6 +418,9 @@ public struct NewExpenseView: View {
                             _ = await viewModel.saveTransaction(token: token)
                         }
                     } label: {
+                        let buttonColor = viewModel.selectedType == .income
+                            ? Color.green
+                            : Color(red: 0.31, green: 0.27, blue: 0.90)
                         HStack(spacing: 8) {
                             Spacer()
                             if viewModel.isSaving {
@@ -371,16 +429,16 @@ public struct NewExpenseView: View {
                             } else {
                                 Image(systemName: "plus")
                                     .font(.system(size: 16, weight: .bold))
-                                Text("Adicionar Gasto")
+                                Text(viewModel.selectedType == .income ? "Adicionar Receita" : "Adicionar Gasto")
                                     .font(.headline.weight(.bold))
                             }
                             Spacer()
                         }
                         .frame(height: 50)
-                        .background(Color(red: 0.31, green: 0.27, blue: 0.90))
+                        .background(buttonColor)
                         .foregroundStyle(.white)
                         .clipShape(.rect(cornerRadius: 12))
-                        .shadow(color: Color(red: 0.31, green: 0.27, blue: 0.90).opacity(0.35), radius: 8, y: 4)
+                        .shadow(color: buttonColor.opacity(0.35), radius: 8, y: 4)
                     }
                     .disabled(viewModel.isSaving)
                     .padding(.top, 4)
@@ -395,7 +453,7 @@ public struct NewExpenseView: View {
         }
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
         .scrollDismissesKeyboard(.interactively)
-        .navigationTitle("Novo Gasto")
+        .navigationTitle("Novo Lançamento")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {

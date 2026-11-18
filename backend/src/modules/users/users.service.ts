@@ -1,9 +1,24 @@
 import { dbPool } from '../../database/postgres.js';
+import { redis } from '../../database/redis.js';
 import { NotFoundError } from '../../shared/errors/AppError.js';
+import { TransactionType } from '../../shared/constants/enums.js';
 import { z } from 'zod';
 import { updatePreferencesBodySchema } from './users.schemas.js';
 
 export class UsersService {
+  private getPrefsCacheKey(userId: number): string {
+    return `cofrinho:user:${userId}:preferences`;
+  }
+
+  private mapPreferencesRow(row: any) {
+    return {
+      user_id: Number(row.user_id),
+      fast_login: Boolean(row.fast_login),
+      verification: Boolean(row.verification),
+      default_transaction_type: row.default_transaction_type || TransactionType.EXPENSE,
+      updated_at: Number(row.updated_at),
+    };
+  }
   async getProfile(userId: number | string) {
     const numericId = Number(userId);
     const nowTimestamp = Date.now();
@@ -37,38 +52,48 @@ export class UsersService {
 
   async getPreferences(userId: number | string) {
     const numericId = Number(userId);
+    const cacheKey = this.getPrefsCacheKey(numericId);
+
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.default_transaction_type) {
+          return parsed;
+        }
+      }
+    } catch {
+      /* Fallback resiliente para PostgreSQL caso o Redis oscile */
+    }
 
     const result = await dbPool.query(
-      `SELECT user_id, fast_login, verification, updated_at
+      `SELECT user_id, fast_login, verification, default_transaction_type, updated_at
        FROM users_preferences WHERE user_id = $1`,
       [numericId]
     );
 
+    let prefs;
     if (result.rows.length === 0) {
       const nowTimestamp = Date.now();
       /* Cria padrão se não existir por consistência */
       const insert = await dbPool.query(
-        `INSERT INTO users_preferences (user_id, fast_login, verification, updated_at)
-         VALUES ($1, true, false, $2)
-         RETURNING user_id, fast_login, verification, updated_at`,
-        [numericId, nowTimestamp]
+        `INSERT INTO users_preferences (user_id, fast_login, verification, default_transaction_type, updated_at)
+         VALUES ($1, true, false, $2, $3)
+         RETURNING user_id, fast_login, verification, default_transaction_type, updated_at`,
+        [numericId, TransactionType.EXPENSE, nowTimestamp]
       );
-      const row = insert.rows[0];
-      return {
-        user_id: Number(row.user_id),
-        fast_login: row.fast_login,
-        verification: row.verification,
-        updated_at: Number(row.updated_at),
-      };
+      prefs = this.mapPreferencesRow(insert.rows[0]);
+    } else {
+      prefs = this.mapPreferencesRow(result.rows[0]);
     }
 
-    const row = result.rows[0];
-    return {
-      user_id: Number(row.user_id),
-      fast_login: row.fast_login,
-      verification: row.verification,
-      updated_at: Number(row.updated_at),
-    };
+    try {
+      await redis.set(cacheKey, JSON.stringify(prefs), 'EX', 3600);
+    } catch {
+      /* Redis fallback */
+    }
+
+    return prefs;
   }
 
   async updatePreferences(userId: number | string, data: z.infer<typeof updatePreferencesBodySchema>) {
@@ -87,6 +112,11 @@ export class UsersService {
       values.push(data.verification);
     }
 
+    if (data.default_transaction_type !== undefined) {
+      updates.push(`default_transaction_type = $${idx++}`);
+      values.push(data.default_transaction_type);
+    }
+
     const nowTimestamp = Date.now();
     updates.push(`updated_at = $${idx++}`);
     values.push(nowTimestamp);
@@ -97,7 +127,7 @@ export class UsersService {
       UPDATE users_preferences
       SET ${updates.join(', ')}
       WHERE user_id = $${idx}
-      RETURNING user_id, fast_login, verification, updated_at
+      RETURNING user_id, fast_login, verification, default_transaction_type, updated_at
     `;
 
     const result = await dbPool.query(query, values);
@@ -105,13 +135,15 @@ export class UsersService {
       throw new NotFoundError('Preferências não encontradas para o usuário.');
     }
 
-    const row = result.rows[0];
-    return {
-      user_id: Number(row.user_id),
-      fast_login: row.fast_login,
-      verification: row.verification,
-      updated_at: Number(row.updated_at),
-    };
+    const prefs = this.mapPreferencesRow(result.rows[0]);
+
+    try {
+      await redis.set(this.getPrefsCacheKey(numericId), JSON.stringify(prefs), 'EX', 3600);
+    } catch {
+      /* Redis fallback */
+    }
+
+    return prefs;
   }
 
   async listSessions(userId: number | string, currentSessionId: string, limit: number, cursor?: string) {
