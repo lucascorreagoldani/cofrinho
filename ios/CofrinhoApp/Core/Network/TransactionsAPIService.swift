@@ -117,6 +117,7 @@ public final class TransactionsAPIService: Sendable {
         hasTime: Bool? = nil,
         categoryId: Int? = nil,
         accountId: Int? = nil,
+        type: String? = nil,
         status: String? = nil
     ) async throws -> TransactionModel {
         var payload: [String: Any] = [:]
@@ -127,6 +128,7 @@ public final class TransactionsAPIService: Sendable {
         if let hasTime { payload["has_time"] = hasTime }
         if let categoryId { payload["category_id"] = categoryId }
         if let accountId { payload["account_id"] = accountId }
+        if let type { payload["type"] = type }
         if let status { payload["status"] = status }
 
         let endpoint = try Endpoint(

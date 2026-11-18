@@ -1,9 +1,15 @@
 import SwiftUI
 
-/// Tela detalhada e expansível para inspeção de um lançamento financeiro no Cofrinho.
-/// Exibe dados completos, observações opcionais editáveis e, no caso de parcelamentos,
-/// o valor total da compra e o cronograma mensal de todas as parcelas do grupo.
+/// Tela detalhada para inspeção, auditoria de modificações e edição completa de um lançamento no Cofrinho.
+/// Permite editar todos os campos (descrição, valor, data, hora, categoria, conta, tipo, observações e status),
+/// exibe quem e quando realizou a última modificação e concentra ocultar/excluir com segurança.
 public struct TransactionDetailSheetView: View {
+    private enum EditField: Int, CaseIterable, Hashable {
+        case description = 0
+        case amount = 1
+        case notes = 2
+    }
+
     @State private var transaction: TransactionModel
     let token: String
     let onUpdated: () -> Void
@@ -13,19 +19,49 @@ public struct TransactionDetailSheetView: View {
     @State private var groupInstallments: [TransactionModel] = []
     @State private var isLoadingInstallments: Bool = false
 
+    @State private var categories: [CategoryModel]
+    @State private var accounts: [AccountModel]
+
+    // MARK: - Edição Rápida de Observação
     @State private var isEditingNotes: Bool = false
     @State private var draftNotes: String = ""
     @State private var isSavingNotes: Bool = false
-    @State private var activeError: (any AppErrorProtocol)?
     @FocusState private var isNotesFocused: Bool
+
+    // MARK: - Edição Completa do Lançamento
+    @State private var isEditingFull: Bool = false
+    @State private var isSavingFullEdit: Bool = false
+    @State private var draftDescription: String = ""
+    @State private var draftRawAmount: Double = 0.0
+    @State private var draftAmountInput: String = ""
+    @State private var draftDate: Date = Date()
+    @State private var draftHasTime: Bool = false
+    @State private var draftCategoryId: Int = 0
+    @State private var draftAccountId: Int = 0
+    @State private var draftType: TransactionType = .expense
+    @State private var draftStatus: RecordStatus = .active
+    @State private var draftFullNotes: String = ""
+    @FocusState private var focusedEditField: EditField?
+
+    // MARK: - Ações de Visibilidade e Exclusão
+    @State private var isPerformingAction: Bool = false
+    @State private var showVisibilityConfirmation: Bool = false
+    @State private var showSingleDeleteConfirmation: Bool = false
+    @State private var showInstallmentDeleteConfirmation: Bool = false
+
+    @State private var activeError: (any AppErrorProtocol)?
 
     public init(
         transaction: TransactionModel,
         token: String,
+        initialCategories: [CategoryModel] = [],
+        initialAccounts: [AccountModel] = [],
         onUpdated: @escaping () -> Void = {}
     ) {
         self._transaction = State(initialValue: transaction)
         self.token = token
+        self._categories = State(initialValue: initialCategories)
+        self._accounts = State(initialValue: initialAccounts)
         self.onUpdated = onUpdated
         self._draftNotes = State(initialValue: transaction.notes ?? "")
     }
@@ -34,40 +70,159 @@ public struct TransactionDetailSheetView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    heroHeaderCard
-                    generalInfoCard
-                    notesCard
+                    if isEditingFull {
+                        fullEditFormContent
+                    } else {
+                        heroHeaderCard
+                        generalInfoCard
 
-                    if transaction.isInstallment {
-                        installmentSummaryCard
-                        installmentScheduleCard
+                        if transaction.isModified {
+                            modificationAuditCard
+                        }
+
+                        notesCard
+
+                        if transaction.isInstallment {
+                            installmentSummaryCard
+                            installmentScheduleCard
+                        }
+
+                        actionsCard
                     }
                 }
                 .padding(16)
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .scrollDismissesKeyboard(.interactively)
-            .navigationTitle("Detalhes do Gasto")
+            .navigationTitle(isEditingFull ? "Editar Lançamento" : "Detalhes do Gasto")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Fechar") {
-                        dismiss()
+                ToolbarItem(placement: .topBarLeading) {
+                    if isEditingFull {
+                        Button("Cancelar") {
+                            focusedEditField = nil
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isEditingFull = false
+                            }
+                        }
+                        .disabled(isSavingFullEdit)
+                    } else {
+                        Button {
+                            beginFullEditing()
+                        } label: {
+                            Label("Editar", systemImage: "pencil")
+                        }
+                        .disabled(isPerformingAction)
                     }
                 }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("OK") {
-                        isNotesFocused = false
+
+                ToolbarItem(placement: .confirmationAction) {
+                    if isEditingFull {
+                        Button("Salvar") {
+                            focusedEditField = nil
+                            Task {
+                                await saveFullUpdate()
+                            }
+                        }
+                        .font(.headline.bold())
+                        .disabled(isSavingFullEdit)
+                    } else {
+                        Button("Fechar") {
+                            dismiss()
+                        }
                     }
-                    .font(.headline.bold())
-                    .foregroundStyle(Color.blue)
+                }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    if isEditingFull {
+                        Button {
+                            moveEditFocus(by: -1)
+                        } label: {
+                            Image(systemName: "chevron.up")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .disabled(!canMoveEditFocus(by: -1))
+
+                        Button {
+                            moveEditFocus(by: 1)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 16, weight: .semibold))
+                                if canMoveEditFocus(by: 1) {
+                                    Text("Próximo")
+                                        .font(.subheadline.weight(.medium))
+                                }
+                            }
+                        }
+                        .disabled(!canMoveEditFocus(by: 1))
+
+                        Spacer()
+
+                        Button("OK") {
+                            focusedEditField = nil
+                        }
+                        .font(.headline.bold())
+                        .foregroundStyle(Color.blue)
+                    } else if isNotesFocused {
+                        Spacer()
+
+                        Button("OK") {
+                            isNotesFocused = false
+                        }
+                        .font(.headline.bold())
+                        .foregroundStyle(Color.blue)
+                    }
                 }
             }
             .task {
+                async let auxTask: Void = loadAuxiliaryListsIfNeeded()
                 if transaction.isInstallment {
                     await loadInstallmentGroupDetails()
                 }
+                _ = await auxTask
+            }
+            .alert(
+                transaction.statusEnum == .hidden ? "Desocultar este lançamento?" : "Ocultar este lançamento?",
+                isPresented: $showVisibilityConfirmation
+            ) {
+                let isHidden = transaction.statusEnum == .hidden
+                Button(isHidden ? "Desocultar" : "Ocultar", role: isHidden ? .none : .destructive) {
+                    Task { await performToggleVisibility() }
+                }
+                Button("Cancelar", role: .cancel) {}
+            } message: {
+                if transaction.statusEnum == .hidden {
+                    Text("Deseja desocultar \"\(transaction.description)\"? Ele voltará a aparecer normalmente no extrato padrão.")
+                } else {
+                    Text("Deseja ocultar \"\(transaction.description)\"? Ele sairá do extrato padrão, mas continuará visível ao ativar o filtro de ocultos.")
+                }
+            }
+            .alert(
+                "Excluir este lançamento?",
+                isPresented: $showSingleDeleteConfirmation
+            ) {
+                Button("Excluir Lançamento", role: .destructive) {
+                    Task { await performDelete(cascade: .single) }
+                }
+                Button("Cancelar", role: .cancel) {}
+            } message: {
+                Text("Tem certeza de que deseja excluir \"\(transaction.description)\" no valor de \(transaction.formattedAmount)?")
+            }
+            .confirmationDialog(
+                "Excluir Lançamento Parcelado",
+                isPresented: $showInstallmentDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Excluir apenas esta parcela", role: .destructive) {
+                    Task { await performDelete(cascade: .single) }
+                }
+                Button("Excluir esta e todas as futuras", role: .destructive) {
+                    Task { await performDelete(cascade: .allFuture) }
+                }
+                Button("Cancelar", role: .cancel) {}
+            } message: {
+                Text("Este lançamento faz parte de um parcelamento. Deseja remover apenas esta parcela ou também todas as futuras?")
             }
             .handleAnyAppError($activeError)
         }
@@ -75,11 +230,12 @@ public struct TransactionDetailSheetView: View {
         .presentationDragIndicator(.visible)
     }
 
-    // MARK: - Cards de Detalhes
+    // MARK: - Cards de Visualização
 
     private var heroHeaderCard: some View {
         let catColor = Color(hex: transaction.category?.color ?? "#FF9500")
         let isHidden = transaction.statusEnum == .hidden
+        let isIncome = transaction.typeEnum == .income
 
         return VStack(spacing: 14) {
             ZStack {
@@ -112,12 +268,22 @@ public struct TransactionDetailSheetView: View {
 
                 Text(transaction.formattedAmount)
                     .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundStyle(isHidden ? Color.secondary : Color.red)
+                    .foregroundStyle(isHidden ? Color.secondary : (isIncome ? Color.green : Color.red))
 
                 HStack(spacing: 8) {
                     Text(transaction.formattedDate)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+
+                    if transaction.isModified {
+                        Label("Modificado", systemImage: "pencil")
+                            .font(.caption2.bold())
+                            .foregroundStyle(Color.orange)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.orange.opacity(0.14))
+                            .clipShape(.rect(cornerRadius: 6))
+                    }
 
                     if isHidden {
                         Label("Oculto", systemImage: "eye.slash.fill")
@@ -192,6 +358,15 @@ public struct TransactionDetailSheetView: View {
             Divider()
 
             detailRow(
+                icon: transaction.typeEnum == .income ? "arrow.down.circle.fill" : "arrow.up.circle.fill",
+                iconColor: transaction.typeEnum == .income ? .green : .red,
+                label: "Tipo",
+                value: transaction.typeEnum.localizedName
+            )
+
+            Divider()
+
+            detailRow(
                 icon: "calendar",
                 iconColor: .blue,
                 label: "Data",
@@ -206,10 +381,75 @@ public struct TransactionDetailSheetView: View {
                 label: "Status",
                 value: transaction.statusEnum == .hidden ? "Oculto no extrato padrão" : "Ativo no extrato"
             )
+
+            Divider()
+
+            detailRow(
+                icon: transaction.isModified ? "pencil.circle.fill" : "doc.plaintext",
+                iconColor: transaction.isModified ? .orange : .secondary,
+                label: "Histórico",
+                value: transaction.isModified ? "Modificado após criação" : "Registro original"
+            )
         }
         .padding(16)
         .background(Color(.systemBackground))
         .clipShape(.rect(cornerRadius: 16))
+        .shadow(color: Color.black.opacity(0.03), radius: 6, y: 2)
+    }
+
+    private var modificationAuditCard: some View {
+        let modifiedDateText = transaction.formattedModifiedDateTime ?? "Registrada"
+        let modifierDisplay: String = {
+            if let user = transaction.updatedBy {
+                if let email = user.email, !email.isEmpty {
+                    return "@\(user.username) (\(email))"
+                }
+                return "@\(user.username)"
+            }
+            if let uid = transaction.updatedByUserId {
+                return "Usuário #\(uid)"
+            }
+            return "Usuário autenticado"
+        }()
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("REGISTRO DE MODIFICAÇÃO", systemImage: "clock.arrow.circlepath")
+                    .font(.caption.bold())
+                    .foregroundStyle(Color.orange)
+                Spacer()
+                Text("Editado")
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.orange.opacity(0.14))
+                    .foregroundStyle(Color.orange)
+                    .clipShape(.rect(cornerRadius: 6))
+            }
+
+            detailRow(
+                icon: "calendar.badge.clock",
+                iconColor: .orange,
+                label: "Data da Modificação",
+                value: modifiedDateText
+            )
+
+            Divider()
+
+            detailRow(
+                icon: "person.crop.circle.badge.checkmark",
+                iconColor: .blue,
+                label: "Modificado por",
+                value: modifierDisplay
+            )
+        }
+        .padding(16)
+        .background(Color(.systemBackground))
+        .clipShape(.rect(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.orange.opacity(0.25), lineWidth: 1)
+        )
         .shadow(color: Color.black.opacity(0.03), radius: 6, y: 2)
     }
 
@@ -420,7 +660,658 @@ public struct TransactionDetailSheetView: View {
         .shadow(color: Color.black.opacity(0.03), radius: 6, y: 2)
     }
 
-    // MARK: - Helpers de UI & Dados
+    private var actionsCard: some View {
+        let isHidden = transaction.statusEnum == .hidden
+
+        return VStack(spacing: 10) {
+            Button {
+                beginFullEditing()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "pencil")
+                    Text("Editar Informações do Lançamento")
+                        .font(.subheadline.bold())
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.blue.opacity(0.12))
+                .foregroundStyle(Color.blue)
+                .clipShape(.rect(cornerRadius: 12))
+            }
+            .disabled(isPerformingAction)
+
+            HStack(spacing: 10) {
+                Button {
+                    showVisibilityConfirmation = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: isHidden ? "eye.fill" : "eye.slash.fill")
+                        Text(isHidden ? "Desocultar" : "Ocultar")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color(.secondarySystemBackground))
+                    .foregroundStyle(.primary)
+                    .clipShape(.rect(cornerRadius: 12))
+                }
+                .disabled(isPerformingAction)
+
+                Button {
+                    if transaction.isInstallment && (transaction.totalInstallments ?? 1) > 1 {
+                        showInstallmentDeleteConfirmation = true
+                    } else {
+                        showSingleDeleteConfirmation = true
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "trash.fill")
+                        Text("Excluir")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.red.opacity(0.12))
+                    .foregroundStyle(Color.red)
+                    .clipShape(.rect(cornerRadius: 12))
+                }
+                .disabled(isPerformingAction)
+            }
+        }
+        .padding(16)
+        .background(Color(.systemBackground))
+        .clipShape(.rect(cornerRadius: 16))
+        .shadow(color: Color.black.opacity(0.03), radius: 6, y: 2)
+    }
+
+    // MARK: - Modo de Edição Completa
+
+    private var fullEditFormContent: some View {
+        let selectedCat = selectedDraftCategory
+        let selectedAcc = selectedDraftAccount
+
+        return VStack(alignment: .leading, spacing: 18) {
+            if transaction.isInstallment {
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundStyle(Color.blue)
+                    Text("A edição será aplicada a esta parcela e ficará registrada com data, hora e usuário modificador.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.blue.opacity(0.08))
+                .clipShape(.rect(cornerRadius: 12))
+            }
+
+            // Descrição e Valor
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Descrição")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    TextField("Descrição do lançamento", text: $draftDescription)
+                        .focused($focusedEditField, equals: .description)
+                        .autocorrectionDisabled(true)
+                        .textInputAutocapitalization(.sentences)
+                        .submitLabel(.next)
+                        .onSubmit {
+                            focusedEditField = .amount
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 12)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(.rect(cornerRadius: 10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(focusedEditField == .description ? Color.blue : Color.clear, lineWidth: 1.5)
+                        )
+                }
+                .frame(maxWidth: .infinity)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Valor (R$)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    TextField("R$ 0,00", text: $draftAmountInput)
+                        .focused($focusedEditField, equals: .amount)
+                        .keyboardType(.numberPad)
+                        .autocorrectionDisabled(true)
+                        .textInputAutocapitalization(.never)
+                        .multilineTextAlignment(.trailing)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 12)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(.rect(cornerRadius: 10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(focusedEditField == .amount ? Color.blue : Color.clear, lineWidth: 1.5)
+                        )
+                        .onChange(of: draftAmountInput) { _, newValue in
+                            updateDraftAmountFromDigits(newValue)
+                        }
+                }
+                .frame(width: 132)
+            }
+
+            // Tipo (Gasto / Receita)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Tipo de Movimentação")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Picker("Tipo", selection: $draftType) {
+                    ForEach(TransactionType.allCases) { itemType in
+                        Text(itemType.localizedName).tag(itemType)
+                    }
+                }
+                .pickerStyle(.segmented)
+            }
+
+            // Categoria e Conta
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Categoria")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Menu {
+                        ForEach(resolvedCategoryOptions) { cat in
+                            Button {
+                                draftCategoryId = cat.id
+                            } label: {
+                                Label(cat.name, systemImage: cat.icon)
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            if let cat = selectedCat {
+                                Image(systemName: cat.icon)
+                                    .font(.caption)
+                                    .foregroundStyle(cat.swiftUIColor)
+                                Text(cat.name)
+                                    .font(.subheadline.weight(.medium))
+                                    .lineLimit(1)
+                            } else {
+                                Text("Selecione...")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(.rect(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Conta / Cartão")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Menu {
+                        ForEach(resolvedAccountOptions) { acc in
+                            Button {
+                                draftAccountId = acc.id
+                            } label: {
+                                Label(acc.name, systemImage: acc.icon)
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            if let acc = selectedAcc {
+                                Image(systemName: acc.icon)
+                                    .font(.caption)
+                                    .foregroundStyle(acc.swiftUIColor)
+                                Text(acc.name)
+                                    .font(.subheadline.weight(.medium))
+                                    .lineLimit(1)
+                            } else {
+                                Text("Selecione...")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, minHeight: 42)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(.rect(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            // Data e Horário
+            VStack(spacing: 10) {
+                HStack {
+                    Label("Data do Lançamento", systemImage: "calendar")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    DatePicker("", selection: $draftDate, displayedComponents: [.date])
+                        .labelsHidden()
+                        .datePickerStyle(.compact)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(.secondarySystemBackground))
+                .clipShape(.rect(cornerRadius: 10))
+
+                VStack(spacing: 8) {
+                    Toggle("Incluir horário específico", isOn: $draftHasTime)
+                        .font(.subheadline.weight(.medium))
+
+                    if draftHasTime {
+                        Divider()
+                        HStack {
+                            Label("Horário", systemImage: "clock")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            DatePicker("", selection: $draftDate, displayedComponents: [.hourAndMinute])
+                                .labelsHidden()
+                                .datePickerStyle(.compact)
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Color(.secondarySystemBackground))
+                .clipShape(.rect(cornerRadius: 10))
+            }
+
+            // Visibilidade no Extrato
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Visibilidade no Extrato")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Picker("Status", selection: $draftStatus) {
+                    Text("Ativo").tag(RecordStatus.active)
+                    Text("Oculto").tag(RecordStatus.hidden)
+                }
+                .pickerStyle(.segmented)
+            }
+
+            // Observação Opcional
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Observação (opcional)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                TextField("Ex: Comprado na promoção, dividir com...", text: $draftFullNotes)
+                    .focused($focusedEditField, equals: .notes)
+                    .autocorrectionDisabled(true)
+                    .textInputAutocapitalization(.sentences)
+                    .submitLabel(.done)
+                    .onSubmit {
+                        focusedEditField = nil
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 12)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(.rect(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(focusedEditField == .notes ? Color.blue : Color.clear, lineWidth: 1.5)
+                    )
+            }
+
+            // Botão Salvar Alterações
+            Button {
+                focusedEditField = nil
+                Task {
+                    await saveFullUpdate()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Spacer()
+                    if isSavingFullEdit {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Salvar Alterações")
+                            .font(.headline.bold())
+                    }
+                    Spacer()
+                }
+                .frame(height: 50)
+                .background(Color.blue)
+                .foregroundStyle(.white)
+                .clipShape(.rect(cornerRadius: 12))
+            }
+            .disabled(isSavingFullEdit)
+            .padding(.top, 4)
+        }
+        .padding(18)
+        .background(Color(.systemBackground))
+        .clipShape(.rect(cornerRadius: 18))
+        .shadow(color: Color.black.opacity(0.05), radius: 10, y: 3)
+    }
+
+    // MARK: - Helpers de Edição & Dados
+
+    private var resolvedCategoryOptions: [CategoryModel] {
+        if !categories.isEmpty { return categories }
+        if let cat = transaction.category {
+            return [
+                CategoryModel(
+                    id: cat.id,
+                    userId: transaction.userId,
+                    name: cat.name,
+                    icon: cat.icon,
+                    color: cat.color
+                )
+            ]
+        }
+        return []
+    }
+
+    private var resolvedAccountOptions: [AccountModel] {
+        if !accounts.isEmpty { return accounts }
+        if let acc = transaction.account {
+            return [
+                AccountModel(
+                    id: acc.id,
+                    userId: transaction.userId,
+                    name: acc.name,
+                    type: acc.type,
+                    icon: acc.icon,
+                    color: acc.color
+                )
+            ]
+        }
+        return []
+    }
+
+    private var selectedDraftCategory: CategoryModel? {
+        resolvedCategoryOptions.first(where: { $0.id == draftCategoryId })
+    }
+
+    private var selectedDraftAccount: AccountModel? {
+        resolvedAccountOptions.first(where: { $0.id == draftAccountId })
+    }
+
+    private func beginFullEditing() {
+        isEditingNotes = false
+        draftDescription = transaction.description
+        let amountDouble = NSDecimalNumber(decimal: transaction.amount).doubleValue
+        draftRawAmount = amountDouble
+        draftAmountInput = amountDouble.brlCurrencyFormatted
+        draftDate = transaction.dateValue
+        draftHasTime = transaction.hasTime
+        draftCategoryId = transaction.categoryId
+        draftAccountId = transaction.accountId
+        draftType = transaction.typeEnum
+        draftStatus = transaction.statusEnum == .hidden ? .hidden : .active
+        draftFullNotes = transaction.notes ?? ""
+
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isEditingFull = true
+        }
+
+        Task {
+            await loadAuxiliaryListsIfNeeded()
+        }
+    }
+
+    private func updateDraftAmountFromDigits(_ input: String) {
+        let cleanDigits = input.filter { $0.isNumber }
+        if let cents = Double(cleanDigits) {
+            draftRawAmount = cents / 100.0
+        } else {
+            draftRawAmount = 0.0
+        }
+        let formatted = draftRawAmount.brlCurrencyFormatted
+        guard draftAmountInput != formatted else { return }
+        draftAmountInput = formatted
+    }
+
+    private func canMoveEditFocus(by offset: Int) -> Bool {
+        guard let current = focusedEditField,
+              let index = EditField.allCases.firstIndex(of: current) else { return false }
+        let target = index + offset
+        return EditField.allCases.indices.contains(target)
+    }
+
+    private func moveEditFocus(by offset: Int) {
+        guard let current = focusedEditField,
+              let index = EditField.allCases.firstIndex(of: current) else { return }
+        let target = index + offset
+        guard EditField.allCases.indices.contains(target) else { return }
+        focusedEditField = EditField.allCases[target]
+    }
+
+    private func loadAuxiliaryListsIfNeeded() async {
+        if categories.isEmpty {
+            let cachedCats = LocalDataManager.shared.fetchCachedCategories()
+            if !cachedCats.isEmpty { categories = cachedCats }
+        }
+        if accounts.isEmpty {
+            let cachedAccs = LocalDataManager.shared.fetchCachedAccounts()
+            if !cachedAccs.isEmpty { accounts = cachedAccs }
+        }
+
+        if categories.isEmpty {
+            if let fetchedCats = try? await CategoriesAPIService.shared.listCategories(token: token) {
+                categories = fetchedCats
+                LocalDataManager.shared.cacheCategories(fetchedCats)
+            }
+        }
+        if accounts.isEmpty {
+            if let fetchedAccs = try? await AccountsAPIService.shared.listAccounts(token: token) {
+                accounts = fetchedAccs
+                LocalDataManager.shared.cacheAccounts(fetchedAccs)
+            }
+        }
+    }
+
+    private func cachedProfileUser() -> UserProfileDTO? {
+        guard let json = KeychainHelper.shared.read(key: "cofrinho_cached_user_json"),
+              let data = json.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(UserProfileDTO.self, from: data)
+    }
+
+    private func saveFullUpdate() async {
+        let trimmedDesc = draftDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedDesc.isEmpty else {
+            activeError = ValidationError.emptyTitle
+            return
+        }
+        guard draftRawAmount > 0 else {
+            activeError = ValidationError.invalidAmount
+            return
+        }
+        guard let category = selectedDraftCategory else {
+            activeError = ValidationError.custom(message: "Selecione uma categoria válida.")
+            return
+        }
+        guard let account = selectedDraftAccount else {
+            activeError = ValidationError.custom(message: "Selecione uma conta ou cartão válido.")
+            return
+        }
+
+        let resolvedDate: Date = {
+            if draftHasTime {
+                return draftDate
+            }
+            return Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: draftDate) ?? draftDate
+        }()
+
+        let dateEpochMs = Int(resolvedDate.timeIntervalSince1970 * 1000)
+        let trimmedNotes = draftFullNotes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedNotes: String? = trimmedNotes.isEmpty ? nil : trimmedNotes
+        let userProfile = cachedProfileUser()
+
+        isSavingFullEdit = true
+        defer { isSavingFullEdit = false }
+
+        if transaction.id < 0 {
+            LocalDataManager.shared.markOfflineUpdateTransaction(
+                id: transaction.id,
+                description: trimmedDesc,
+                notes: normalizedNotes,
+                amount: draftRawAmount,
+                date: dateEpochMs,
+                hasTime: draftHasTime,
+                category: category,
+                account: account,
+                type: draftType.rawValue,
+                status: draftStatus.rawValue,
+                modifiedByUserId: userProfile?.id ?? transaction.userId,
+                modifiedByUsername: userProfile?.username,
+                modifiedByEmail: userProfile?.email
+            )
+            applyOfflineModelUpdate(
+                description: trimmedDesc,
+                notes: normalizedNotes,
+                amount: draftRawAmount,
+                dateMs: dateEpochMs,
+                hasTime: draftHasTime,
+                category: category,
+                account: account,
+                type: draftType.rawValue,
+                status: draftStatus.rawValue,
+                userProfile: userProfile
+            )
+            NewExpenseViewModel.invalidateRemoteSyncCache()
+            isEditingFull = false
+            onUpdated()
+            return
+        }
+
+        do {
+            let updated = try await TransactionsAPIService.shared.updateTransaction(
+                token: token,
+                id: transaction.id,
+                description: trimmedDesc,
+                notes: trimmedNotes,
+                amount: draftRawAmount,
+                date: dateEpochMs,
+                hasTime: draftHasTime,
+                categoryId: category.id,
+                accountId: account.id,
+                type: draftType.rawValue,
+                status: draftStatus.rawValue
+            )
+
+            self.transaction = updated
+            self.draftNotes = updated.notes ?? ""
+            LocalDataManager.shared.cacheTransactions([updated])
+            NewExpenseViewModel.invalidateRemoteSyncCache()
+
+            if updated.isInstallment {
+                await loadInstallmentGroupDetails()
+            }
+
+            let haptic = UINotificationFeedbackGenerator()
+            haptic.notificationOccurred(.success)
+            isEditingFull = false
+            onUpdated()
+        } catch let netErr as NetworkError where isConnectionError(netErr) {
+            LocalDataManager.shared.markOfflineUpdateTransaction(
+                id: transaction.id,
+                description: trimmedDesc,
+                notes: normalizedNotes,
+                amount: draftRawAmount,
+                date: dateEpochMs,
+                hasTime: draftHasTime,
+                category: category,
+                account: account,
+                type: draftType.rawValue,
+                status: draftStatus.rawValue,
+                modifiedByUserId: userProfile?.id ?? transaction.userId,
+                modifiedByUsername: userProfile?.username,
+                modifiedByEmail: userProfile?.email
+            )
+            applyOfflineModelUpdate(
+                description: trimmedDesc,
+                notes: normalizedNotes,
+                amount: draftRawAmount,
+                dateMs: dateEpochMs,
+                hasTime: draftHasTime,
+                category: category,
+                account: account,
+                type: draftType.rawValue,
+                status: draftStatus.rawValue,
+                userProfile: userProfile
+            )
+            NewExpenseViewModel.invalidateRemoteSyncCache()
+            isEditingFull = false
+            onUpdated()
+        } catch let appErr as any AppErrorProtocol {
+            self.activeError = appErr
+        } catch {
+            self.activeError = NetworkError.unknown(reason: error.localizedDescription)
+        }
+    }
+
+    private func applyOfflineModelUpdate(
+        description: String,
+        notes: String?,
+        amount: Double,
+        dateMs: Int,
+        hasTime: Bool,
+        category: CategoryModel,
+        account: AccountModel,
+        type: String,
+        status: String,
+        userProfile: UserProfileDTO?
+    ) {
+        let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+        transaction.description = description
+        transaction.notes = notes
+        transaction.amount = Decimal(amount)
+        transaction.date = dateMs
+        transaction.hasTime = hasTime
+        transaction.categoryId = category.id
+        transaction.category = CategoryRelationDTO(
+            id: category.id,
+            name: category.name,
+            icon: category.icon,
+            color: category.color
+        )
+        transaction.accountId = account.id
+        transaction.account = AccountRelationDTO(
+            id: account.id,
+            name: account.name,
+            type: account.type,
+            icon: account.icon,
+            color: account.color
+        )
+        transaction.type = type
+        transaction.status = status
+        transaction.isModified = true
+        transaction.modifiedAt = nowMs
+        transaction.updatedAt = nowMs
+        if let profile = userProfile {
+            transaction.updatedByUserId = profile.id
+            transaction.updatedBy = TransactionModifierUserDTO(
+                id: profile.id,
+                username: profile.username,
+                email: profile.email
+            )
+        }
+        draftNotes = notes ?? ""
+    }
 
     private func detailRow(icon: String, iconColor: Color, label: String, value: String) -> some View {
         HStack(spacing: 12) {
@@ -478,8 +1369,12 @@ public struct TransactionDetailSheetView: View {
         defer { isSavingNotes = false }
 
         if transaction.id < 0 {
+            let nowMs = Int(Date().timeIntervalSince1970 * 1000)
             LocalDataManager.shared.markOfflineUpdateNotes(id: transaction.id, notes: normalizedForModel)
             transaction.notes = normalizedForModel
+            transaction.isModified = true
+            transaction.modifiedAt = nowMs
+            transaction.updatedAt = nowMs
             isEditingNotes = false
             onUpdated()
             return
@@ -491,15 +1386,77 @@ public struct TransactionDetailSheetView: View {
                 id: transaction.id,
                 notes: trimmed
             )
-            transaction.notes = updated.notes
+            transaction = updated
             LocalDataManager.shared.cacheTransactions([updated])
             isEditingNotes = false
             onUpdated()
         } catch let netErr as NetworkError where isConnectionError(netErr) {
+            let nowMs = Int(Date().timeIntervalSince1970 * 1000)
             LocalDataManager.shared.markOfflineUpdateNotes(id: transaction.id, notes: normalizedForModel)
             transaction.notes = normalizedForModel
+            transaction.isModified = true
+            transaction.modifiedAt = nowMs
+            transaction.updatedAt = nowMs
             isEditingNotes = false
             onUpdated()
+        } catch let appErr as any AppErrorProtocol {
+            self.activeError = appErr
+        } catch {
+            self.activeError = NetworkError.unknown(reason: error.localizedDescription)
+        }
+    }
+
+    private func performToggleVisibility() async {
+        isPerformingAction = true
+        defer { isPerformingAction = false }
+
+        if transaction.id < 0 {
+            LocalDataManager.shared.markOfflineToggleVisibility(id: transaction.id)
+            transaction.status = transaction.statusEnum == .hidden ? RecordStatus.active.rawValue : RecordStatus.hidden.rawValue
+            onUpdated()
+            return
+        }
+
+        do {
+            let updated = try await TransactionsAPIService.shared.toggleVisibility(token: token, id: transaction.id)
+            transaction = updated
+            LocalDataManager.shared.cacheTransactions([updated])
+            onUpdated()
+        } catch let err as NetworkError where isConnectionError(err) {
+            LocalDataManager.shared.markOfflineToggleVisibility(id: transaction.id)
+            transaction.status = transaction.statusEnum == .hidden ? RecordStatus.active.rawValue : RecordStatus.hidden.rawValue
+            onUpdated()
+        } catch let appErr as any AppErrorProtocol {
+            self.activeError = appErr
+        } catch {
+            self.activeError = NetworkError.unknown(reason: error.localizedDescription)
+        }
+    }
+
+    private func performDelete(cascade: DeleteCascadeMode) async {
+        isPerformingAction = true
+        defer { isPerformingAction = false }
+
+        if transaction.id < 0 {
+            LocalDataManager.shared.markOfflineDelete(id: transaction.id, cascade: cascade)
+            onUpdated()
+            dismiss()
+            return
+        }
+
+        do {
+            try await TransactionsAPIService.shared.deleteTransaction(
+                token: token,
+                id: transaction.id,
+                cascade: cascade
+            )
+            LocalDataManager.shared.removeSyncedTransaction(id: transaction.id, cascade: cascade)
+            onUpdated()
+            dismiss()
+        } catch let err as NetworkError where isConnectionError(err) {
+            LocalDataManager.shared.markOfflineDelete(id: transaction.id, cascade: cascade)
+            onUpdated()
+            dismiss()
         } catch let appErr as any AppErrorProtocol {
             self.activeError = appErr
         } catch {

@@ -128,6 +128,9 @@ CREATE TABLE IF NOT EXISTS transactions (
     installment_number SMALLINT,
     total_installments SMALLINT,
     installment_group_id UUID,
+    is_modified BOOLEAN NOT NULL DEFAULT false,
+    modified_at BIGINT,
+    updated_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
     created_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint,
     updated_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint
 );
@@ -139,5 +142,20 @@ CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_group ON transactions(installment_group_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_description_search ON transactions(user_id, description);
 
+-- 8. Tabela TRANSACTION_MODIFICATIONS (Auditoria completa de edições de lançamentos)
+CREATE TABLE IF NOT EXISTS transaction_modifications (
+    id BIGSERIAL PRIMARY KEY,
+    transaction_id BIGINT NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    previous_snapshot JSONB NOT NULL,
+    updated_snapshot JSONB NOT NULL,
+    modified_at BIGINT NOT NULL DEFAULT (extract(epoch from now()) * 1000)::bigint
+);
+
+CREATE INDEX IF NOT EXISTS idx_tx_modifications_tx_id ON transaction_modifications(transaction_id, modified_at DESC);
+
 /* Migrações idempotentes para bancos existentes */
 ALTER TABLE transactions ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS is_modified BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS modified_at BIGINT;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS updated_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;

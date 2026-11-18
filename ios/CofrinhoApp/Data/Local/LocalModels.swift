@@ -20,6 +20,11 @@ public final class LocalTransaction {
     public var installmentNumber: Int?
     public var totalInstallments: Int?
     public var installmentGroupId: String?
+    public var isModified: Bool = false
+    public var modifiedAt: Int?
+    public var updatedByUserId: Int?
+    public var updatedByUsername: String?
+    public var updatedByEmail: String?
     public var createdAt: Int
     public var updatedAt: Int
     public var syncStatus: String // synced, pending_create, pending_update, pending_delete
@@ -51,6 +56,11 @@ public final class LocalTransaction {
         installmentNumber: Int? = nil,
         totalInstallments: Int? = nil,
         installmentGroupId: String? = nil,
+        isModified: Bool = false,
+        modifiedAt: Int? = nil,
+        updatedByUserId: Int? = nil,
+        updatedByUsername: String? = nil,
+        updatedByEmail: String? = nil,
         createdAt: Int = Int(Date().timeIntervalSince1970 * 1000),
         updatedAt: Int = Int(Date().timeIntervalSince1970 * 1000),
         syncStatus: String = "synced",
@@ -78,6 +88,11 @@ public final class LocalTransaction {
         self.installmentNumber = installmentNumber
         self.totalInstallments = totalInstallments
         self.installmentGroupId = installmentGroupId
+        self.isModified = isModified
+        self.modifiedAt = modifiedAt
+        self.updatedByUserId = updatedByUserId
+        self.updatedByUsername = updatedByUsername
+        self.updatedByEmail = updatedByEmail
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.syncStatus = syncStatus
@@ -123,6 +138,15 @@ public final class LocalTransaction {
             )
         }
 
+        var updatedByDTO: TransactionModifierUserDTO? = nil
+        if let updatedByUserId, let updatedByUsername {
+            updatedByDTO = TransactionModifierUserDTO(
+                id: updatedByUserId,
+                username: updatedByUsername,
+                email: updatedByEmail
+            )
+        }
+
         return TransactionModel(
             id: stableDisplayId,
             userId: userId,
@@ -141,6 +165,10 @@ public final class LocalTransaction {
             installmentNumber: installmentNumber,
             totalInstallments: totalInstallments,
             installmentGroupId: installmentGroupId,
+            isModified: isModified,
+            modifiedAt: modifiedAt,
+            updatedByUserId: updatedByUserId,
+            updatedBy: updatedByDTO,
             createdAt: createdAt,
             updatedAt: updatedAt
         )

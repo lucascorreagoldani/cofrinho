@@ -66,6 +66,11 @@ public final class LocalDataManager {
                 existing.installmentNumber = tx.installmentNumber
                 existing.totalInstallments = tx.totalInstallments
                 existing.installmentGroupId = tx.installmentGroupId
+                existing.isModified = tx.isModified
+                existing.modifiedAt = tx.modifiedAt
+                existing.updatedByUserId = tx.updatedByUserId
+                existing.updatedByUsername = tx.updatedBy?.username
+                existing.updatedByEmail = tx.updatedBy?.email
                 existing.updatedAt = tx.updatedAt
                 existing.syncStatus = syncedRaw
             } else {
@@ -85,6 +90,11 @@ public final class LocalDataManager {
                     installmentNumber: tx.installmentNumber,
                     totalInstallments: tx.totalInstallments,
                     installmentGroupId: tx.installmentGroupId,
+                    isModified: tx.isModified,
+                    modifiedAt: tx.modifiedAt,
+                    updatedByUserId: tx.updatedByUserId,
+                    updatedByUsername: tx.updatedBy?.username,
+                    updatedByEmail: tx.updatedBy?.email,
                     createdAt: tx.createdAt,
                     updatedAt: tx.updatedAt,
                     syncStatus: syncedRaw,
@@ -241,9 +251,12 @@ public final class LocalDataManager {
     /// Atualiza as observações de um lançamento localmente no SwiftData e agenda sincronização.
     public func markOfflineUpdateNotes(id: Int, notes: String?) {
         guard let item = findLocalTransaction(byDisplayId: id) else { return }
+        let nowMs = Int(Date().timeIntervalSince1970 * 1000)
         let trimmed = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
         item.notes = (trimmed?.isEmpty ?? true) ? nil : trimmed
-        item.updatedAt = Int(Date().timeIntervalSince1970 * 1000)
+        item.isModified = true
+        item.modifiedAt = nowMs
+        item.updatedAt = nowMs
 
         if item.syncStatus == SyncStatus.synced.rawValue {
             item.syncStatus = SyncStatus.pendingUpdate.rawValue
@@ -251,6 +264,63 @@ public final class LocalDataManager {
 
         try? context.save()
         AppLogger.shared.info("Observações atualizadas offline para transação (id: \(id)).", category: .database)
+    }
+
+    /// Atualiza todos os campos editáveis de um lançamento localmente no SwiftData e agenda sincronização com a VPS.
+    public func markOfflineUpdateTransaction(
+        id: Int,
+        description: String,
+        notes: String?,
+        amount: Double,
+        date: Int,
+        hasTime: Bool,
+        category: CategoryModel,
+        account: AccountModel,
+        type: String,
+        status: String,
+        modifiedByUserId: Int?,
+        modifiedByUsername: String?,
+        modifiedByEmail: String?
+    ) {
+        guard let item = findLocalTransaction(byDisplayId: id) else { return }
+        let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+        let trimmedNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        item.transactionDescription = description
+        item.notes = (trimmedNotes?.isEmpty ?? true) ? nil : trimmedNotes
+        item.amount = amount
+        item.date = date
+        item.hasTime = hasTime
+        item.categoryId = category.id
+        item.categoryName = category.name
+        item.categoryIcon = category.icon
+        item.categoryColor = category.color
+        item.accountId = account.id
+        item.accountName = account.name
+        item.accountType = account.type
+        item.accountIcon = account.icon
+        item.accountColor = account.color
+        item.type = type
+        item.status = status
+        item.isModified = true
+        item.modifiedAt = nowMs
+        item.updatedAt = nowMs
+        if let modifiedByUserId {
+            item.updatedByUserId = modifiedByUserId
+        }
+        if let modifiedByUsername {
+            item.updatedByUsername = modifiedByUsername
+        }
+        if let modifiedByEmail {
+            item.updatedByEmail = modifiedByEmail
+        }
+
+        if item.syncStatus == SyncStatus.synced.rawValue {
+            item.syncStatus = SyncStatus.pendingUpdate.rawValue
+        }
+
+        try? context.save()
+        AppLogger.shared.info("Lançamento atualizado offline para sincronização (id: \(id)).", category: .database)
     }
 
     /// Busca todas as parcelas armazenadas no SwiftData para um mesmo installment_group_id.
@@ -342,8 +412,19 @@ public final class LocalDataManager {
                             id: serverId,
                             description: item.transactionDescription,
                             notes: item.notes ?? "",
+                            amount: item.amount,
+                            date: item.date,
+                            hasTime: item.hasTime,
+                            categoryId: item.categoryId,
+                            accountId: item.accountId,
+                            type: item.type,
                             status: item.status
                         )
+                        item.isModified = updated.isModified
+                        item.modifiedAt = updated.modifiedAt
+                        item.updatedByUserId = updated.updatedByUserId
+                        item.updatedByUsername = updated.updatedBy?.username
+                        item.updatedByEmail = updated.updatedBy?.email
                         item.syncStatus = SyncStatus.synced.rawValue
                         item.updatedAt = updated.updatedAt
                         try? context.save()

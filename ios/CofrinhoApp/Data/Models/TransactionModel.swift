@@ -33,6 +33,19 @@ public struct AccountRelationDTO: Codable, Sendable, Hashable {
     }
 }
 
+/// Dados básicos do usuário responsável pela última modificação no lançamento
+public struct TransactionModifierUserDTO: Codable, Sendable, Hashable {
+    public let id: Int
+    public let username: String
+    public let email: String?
+
+    public init(id: Int, username: String, email: String? = nil) {
+        self.id = id
+        self.username = username
+        self.email = email
+    }
+}
+
 /// DTO para sugestões inteligentes de autocompletar baseadas no histórico do usuário
 public struct SuggestionItemDTO: Codable, Sendable, Identifiable, Hashable {
     public var id: String { description.lowercased() }
@@ -109,8 +122,12 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
     public var installmentNumber: Int?
     public var totalInstallments: Int?
     public var installmentGroupId: String?
+    public var isModified: Bool
+    public var modifiedAt: Int?
+    public var updatedByUserId: Int?
+    public var updatedBy: TransactionModifierUserDTO?
     public let createdAt: Int
-    public let updatedAt: Int
+    public var updatedAt: Int
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -130,6 +147,10 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
         case installmentNumber = "installment_number"
         case totalInstallments = "total_installments"
         case installmentGroupId = "installment_group_id"
+        case isModified = "is_modified"
+        case modifiedAt = "modified_at"
+        case updatedByUserId = "updated_by_user_id"
+        case updatedBy = "updated_by"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
     }
@@ -152,6 +173,10 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
         installmentNumber: Int? = nil,
         totalInstallments: Int? = nil,
         installmentGroupId: String? = nil,
+        isModified: Bool = false,
+        modifiedAt: Int? = nil,
+        updatedByUserId: Int? = nil,
+        updatedBy: TransactionModifierUserDTO? = nil,
         createdAt: Int = Int(Date().timeIntervalSince1970 * 1000),
         updatedAt: Int = Int(Date().timeIntervalSince1970 * 1000)
     ) {
@@ -172,6 +197,10 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
         self.installmentNumber = installmentNumber
         self.totalInstallments = totalInstallments
         self.installmentGroupId = installmentGroupId
+        self.isModified = isModified
+        self.modifiedAt = modifiedAt
+        self.updatedByUserId = updatedByUserId
+        self.updatedBy = updatedBy
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -204,6 +233,10 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
         self.installmentNumber = try container.decodeIfPresent(Int.self, forKey: .installmentNumber)
         self.totalInstallments = try container.decodeIfPresent(Int.self, forKey: .totalInstallments)
         self.installmentGroupId = try container.decodeIfPresent(String.self, forKey: .installmentGroupId)
+        self.isModified = try container.decodeIfPresent(Bool.self, forKey: .isModified) ?? false
+        self.modifiedAt = try container.decodeIfPresent(Int.self, forKey: .modifiedAt)
+        self.updatedByUserId = try container.decodeIfPresent(Int.self, forKey: .updatedByUserId)
+        self.updatedBy = try container.decodeIfPresent(TransactionModifierUserDTO.self, forKey: .updatedBy)
         self.createdAt = try container.decode(Int.self, forKey: .createdAt)
         self.updatedAt = try container.decode(Int.self, forKey: .updatedAt)
     }
@@ -221,6 +254,26 @@ public struct TransactionModel: Identifiable, Codable, Sendable, Hashable {
     /// Objeto Date correspondente ao timestamp numérico em epoch ms.
     public var dateValue: Date {
         Date(timeIntervalSince1970: TimeInterval(date) / 1000.0)
+    }
+
+    /// Objeto Date correspondente à data/hora da última modificação registrada.
+    public var modifiedDateValue: Date? {
+        guard isModified, let modifiedAt else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(modifiedAt) / 1000.0)
+    }
+
+    /// Data e hora formatadas da última modificação em português do Brasil.
+    public var formattedModifiedDateTime: String? {
+        guard let date = modifiedDateValue else { return nil }
+        return date.formatted(
+            .dateTime
+                .day(.twoDigits)
+                .month(.twoDigits)
+                .year()
+                .hour(.twoDigits(amPM: .omitted))
+                .minute(.twoDigits)
+                .locale(Locale(identifier: "pt_BR"))
+        )
     }
 
     /// Formatação monetária padronizada em Real (R$ 0,00) via FormatStyle nativo.

@@ -15,8 +15,23 @@ import {
 } from './transactions.schemas.js';
 
 export class TransactionsService {
-  private getSummaryCachePrefix(userId: number): string {
-    return `cofrinho:user:${userId}:tx:summary`;
+  private getTxCachePrefix(userId: number): string {
+    return `cofrinho:user:${userId}:tx`;
+  }
+
+  private getTxListCacheKey(
+    userId: number,
+    filters: z.infer<typeof listTransactionsQuerySchema>
+  ): string {
+    return `${this.getTxCachePrefix(userId)}:list:m${filters.month ?? 'all'}:y${filters.year ?? 'all'}:s${filters.status}:c${filters.category_id ?? 'all'}:a${filters.account_id ?? 'all'}:p${filters.page}:l${filters.limit}`;
+  }
+
+  private getTxGroupCacheKey(userId: number, groupId: string): string {
+    return `${this.getTxCachePrefix(userId)}:group:${groupId}`;
+  }
+
+  private getTxItemCacheKey(userId: number, transactionId: number): string {
+    return `${this.getTxCachePrefix(userId)}:item:${transactionId}`;
   }
 
   async createTransaction(userId: number, data: z.infer<typeof createTransactionBodySchema>) {
@@ -169,6 +184,17 @@ export class TransactionsService {
   }
 
   async listTransactions(userId: number, filters: z.infer<typeof listTransactionsQuerySchema>) {
+    const cacheKey = this.getTxListCacheKey(userId, filters);
+
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch {
+      /* Fallback resiliente para PostgreSQL se o Redis oscilar */
+    }
+
     const conditions = ['t.user_id = $1'];
     const values: any[] = [userId];
     let idx = 2;
@@ -210,49 +236,62 @@ export class TransactionsService {
       SELECT
         t.id, t.user_id, t.category_id, t.account_id, t.type, t.amount, t.description, t.notes,
         t.date, t.has_time, t.status, t.is_installment, t.installment_number,
-        t.total_installments, t.installment_group_id, t.created_at, t.updated_at,
+        t.total_installments, t.installment_group_id,
+        t.is_modified, t.modified_at, t.updated_by_user_id,
+        t.created_at, t.updated_at,
         c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
-        a.name AS account_name, a.type AS account_type, a.icon AS account_icon, a.color AS account_color
+        a.name AS account_name, a.type AS account_type, a.icon AS account_icon, a.color AS account_color,
+        u_mod.username AS updated_by_username, u_mod.email AS updated_by_email
       FROM transactions t
       JOIN categories c ON c.id = t.category_id
       JOIN accounts a ON a.id = t.account_id
+      LEFT JOIN users u_mod ON u_mod.id = t.updated_by_user_id
       WHERE ${conditions.join(' AND ')}
       ORDER BY t.date DESC, t.id DESC
       LIMIT $${idx++} OFFSET $${idx}
     `;
 
     const result = await dbPool.query(query, values);
+    const items = result.rows.map((row) => this.mapJoinedTransactionRow(row));
 
-    return result.rows.map((row) =>
-      this.mapTransactionRow(row, {
-        id: Number(row.category_id),
-        name: row.category_name,
-        icon: row.category_icon,
-        color: row.category_color,
-      }, {
-        id: Number(row.account_id),
-        name: row.account_name,
-        type: row.account_type,
-        icon: row.account_icon,
-        color: row.account_color,
-      })
-    );
+    try {
+      await redis.set(cacheKey, JSON.stringify(items), 'EX', 120);
+    } catch {
+      /* Redis fallback */
+    }
+
+    return items;
   }
 
   /**
    * Lista todas as parcelas associadas a um mesmo installment_group_id em ordem cronológica.
    */
   async listInstallmentGroup(userId: number, groupId: string) {
+    const cacheKey = this.getTxGroupCacheKey(userId, groupId);
+
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch {
+      /* Fallback resiliente para PostgreSQL se o Redis oscilar */
+    }
+
     const query = `
       SELECT
         t.id, t.user_id, t.category_id, t.account_id, t.type, t.amount, t.description, t.notes,
         t.date, t.has_time, t.status, t.is_installment, t.installment_number,
-        t.total_installments, t.installment_group_id, t.created_at, t.updated_at,
+        t.total_installments, t.installment_group_id,
+        t.is_modified, t.modified_at, t.updated_by_user_id,
+        t.created_at, t.updated_at,
         c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
-        a.name AS account_name, a.type AS account_type, a.icon AS account_icon, a.color AS account_color
+        a.name AS account_name, a.type AS account_type, a.icon AS account_icon, a.color AS account_color,
+        u_mod.username AS updated_by_username, u_mod.email AS updated_by_email
       FROM transactions t
       JOIN categories c ON c.id = t.category_id
       JOIN accounts a ON a.id = t.account_id
+      LEFT JOIN users u_mod ON u_mod.id = t.updated_by_user_id
       WHERE t.user_id = $1
         AND t.installment_group_id = $2
         AND t.status != '${RecordStatus.DELETED}'
@@ -264,20 +303,15 @@ export class TransactionsService {
       throw new NotFoundError('Parcelamento não encontrado.');
     }
 
-    return result.rows.map((row) =>
-      this.mapTransactionRow(row, {
-        id: Number(row.category_id),
-        name: row.category_name,
-        icon: row.category_icon,
-        color: row.category_color,
-      }, {
-        id: Number(row.account_id),
-        name: row.account_name,
-        type: row.account_type,
-        icon: row.account_icon,
-        color: row.account_color,
-      })
-    );
+    const items = result.rows.map((row) => this.mapJoinedTransactionRow(row));
+
+    try {
+      await redis.set(cacheKey, JSON.stringify(items), 'EX', 120);
+    } catch {
+      /* Redis fallback */
+    }
+
+    return items;
   }
 
   private cleanSuggestionDescription(raw: string): string {
@@ -470,74 +504,184 @@ export class TransactionsService {
   }
 
   async updateTransaction(userId: number, transactionId: number, data: z.infer<typeof updateTransactionBodySchema>) {
-    const nowTimestamp = Date.now();
+    const client = await dbPool.connect();
 
-    const existing = await dbPool.query(
-      `SELECT id FROM transactions WHERE id = $1 AND user_id = $2`,
-      [transactionId, userId]
-    );
+    try {
+      await client.query('BEGIN');
 
-    if (existing.rows.length === 0) {
-      throw new NotFoundError('Gasto não encontrado ou não pertence a este usuário.');
-    }
-
-    const fields: string[] = [];
-    const values: any[] = [];
-    let idx = 1;
-
-    if (data.description !== undefined) {
-      fields.push(`description = $${idx++}`);
-      values.push(data.description);
-    }
-    if (data.notes !== undefined) {
-      const cleanNotes = data.notes && data.notes.trim().length > 0 ? data.notes.trim() : null;
-      fields.push(`notes = $${idx++}`);
-      values.push(cleanNotes);
-    }
-    if (data.amount !== undefined) {
-      fields.push(`amount = $${idx++}`);
-      values.push(data.amount);
-    }
-    if (data.date !== undefined) {
-      fields.push(`date = $${idx++}`);
-      values.push(data.date);
-    }
-    if (data.has_time !== undefined) {
-      fields.push(`has_time = $${idx++}`);
-      values.push(data.has_time);
-    }
-    if (data.category_id !== undefined) {
-      fields.push(`category_id = $${idx++}`);
-      values.push(data.category_id);
-    }
-    if (data.account_id !== undefined) {
-      fields.push(`account_id = $${idx++}`);
-      values.push(data.account_id);
-    }
-    if (data.status !== undefined) {
-      fields.push(`status = $${idx++}`);
-      values.push(data.status);
-    }
-
-    fields.push(`updated_at = $${idx++}`);
-    values.push(nowTimestamp);
-
-    values.push(transactionId);
-    values.push(userId);
-
-    const query = `
-      UPDATE transactions
-      SET ${fields.join(', ')}
-      WHERE id = $${idx++} AND user_id = $${idx}
-      RETURNING id, user_id, category_id, account_id, type, amount, description, notes,
+      const existing = await client.query(
+        `SELECT id, user_id, category_id, account_id, type, amount, description, notes,
                 date, has_time, status, is_installment, installment_number,
-                total_installments, installment_group_id, created_at, updated_at
-    `;
+                total_installments, installment_group_id,
+                is_modified, modified_at, updated_by_user_id, created_at, updated_at
+         FROM transactions
+         WHERE id = $1 AND user_id = $2 AND status != $3
+         FOR UPDATE`,
+        [transactionId, userId, RecordStatus.DELETED]
+      );
 
-    const result = await dbPool.query(query, values);
-    await this.invalidateUserTransactionsCache(userId);
+      if (existing.rows.length === 0) {
+        throw new NotFoundError('Gasto não encontrado ou não pertence a este usuário.');
+      }
 
-    return this.mapTransactionRow(result.rows[0]);
+      const currentRow = existing.rows[0];
+      const previousSnapshot = {
+        category_id: Number(currentRow.category_id),
+        account_id: Number(currentRow.account_id),
+        type: currentRow.type,
+        amount: parseFloat(currentRow.amount),
+        description: currentRow.description,
+        notes: currentRow.notes ?? null,
+        date: Number(currentRow.date),
+        has_time: Boolean(currentRow.has_time),
+        status: currentRow.status,
+        is_modified: Boolean(currentRow.is_modified),
+        modified_at: currentRow.modified_at ? Number(currentRow.modified_at) : null,
+        updated_by_user_id: currentRow.updated_by_user_id ? Number(currentRow.updated_by_user_id) : null,
+      };
+
+      if (data.category_id !== undefined) {
+        const catCheck = await client.query(
+          `SELECT id FROM categories WHERE id = $1 AND user_id = $2 AND status != $3`,
+          [data.category_id, userId, RecordStatus.DELETED]
+        );
+        if (catCheck.rows.length === 0) {
+          throw new NotFoundError('Categoria informada não existe ou foi removida.');
+        }
+      }
+
+      if (data.account_id !== undefined) {
+        const accCheck = await client.query(
+          `SELECT id FROM accounts WHERE id = $1 AND user_id = $2 AND status != $3`,
+          [data.account_id, userId, RecordStatus.DELETED]
+        );
+        if (accCheck.rows.length === 0) {
+          throw new NotFoundError('Conta informada não existe ou foi removida.');
+        }
+      }
+
+      const fields: string[] = [];
+      const values: any[] = [];
+      let idx = 1;
+
+      if (data.description !== undefined) {
+        fields.push(`description = $${idx++}`);
+        values.push(data.description);
+      }
+      if (data.notes !== undefined) {
+        const cleanNotes = data.notes && data.notes.trim().length > 0 ? data.notes.trim() : null;
+        fields.push(`notes = $${idx++}`);
+        values.push(cleanNotes);
+      }
+      if (data.amount !== undefined) {
+        fields.push(`amount = $${idx++}`);
+        values.push(data.amount);
+      }
+      if (data.date !== undefined) {
+        fields.push(`date = $${idx++}`);
+        values.push(data.date);
+      }
+      if (data.has_time !== undefined) {
+        fields.push(`has_time = $${idx++}`);
+        values.push(data.has_time);
+      }
+      if (data.category_id !== undefined) {
+        fields.push(`category_id = $${idx++}`);
+        values.push(data.category_id);
+      }
+      if (data.account_id !== undefined) {
+        fields.push(`account_id = $${idx++}`);
+        values.push(data.account_id);
+      }
+      if (data.type !== undefined) {
+        fields.push(`type = $${idx++}`);
+        values.push(data.type);
+      }
+      if (data.status !== undefined) {
+        fields.push(`status = $${idx++}`);
+        values.push(data.status);
+      }
+
+      if (fields.length === 0) {
+        throw new ValidationError('Nenhum campo válido enviado para atualização.');
+      }
+
+      const nowTimestamp = Date.now();
+      fields.push(`is_modified = true`);
+      fields.push(`modified_at = $${idx++}`);
+      values.push(nowTimestamp);
+      fields.push(`updated_at = $${idx++}`);
+      values.push(nowTimestamp);
+      fields.push(`updated_by_user_id = $${idx++}`);
+      values.push(userId);
+
+      values.push(transactionId);
+      values.push(userId);
+
+      const updateQuery = `
+        UPDATE transactions
+        SET ${fields.join(', ')}
+        WHERE id = $${idx++} AND user_id = $${idx}
+        RETURNING id, user_id, category_id, account_id, type, amount, description, notes,
+                  date, has_time, status, is_installment, installment_number,
+                  total_installments, installment_group_id,
+                  is_modified, modified_at, updated_by_user_id, created_at, updated_at
+      `;
+
+      const updatedResult = await client.query(updateQuery, values);
+      const updatedRow = updatedResult.rows[0];
+
+      const updatedSnapshot = {
+        category_id: Number(updatedRow.category_id),
+        account_id: Number(updatedRow.account_id),
+        type: updatedRow.type,
+        amount: parseFloat(updatedRow.amount),
+        description: updatedRow.description,
+        notes: updatedRow.notes ?? null,
+        date: Number(updatedRow.date),
+        has_time: Boolean(updatedRow.has_time),
+        status: updatedRow.status,
+        is_modified: true,
+        modified_at: nowTimestamp,
+        updated_by_user_id: userId,
+      };
+
+      await client.query(
+        `INSERT INTO transaction_modifications (
+          transaction_id, user_id, previous_snapshot, updated_snapshot, modified_at
+        ) VALUES ($1, $2, $3::jsonb, $4::jsonb, $5)`,
+        [
+          transactionId,
+          userId,
+          JSON.stringify(previousSnapshot),
+          JSON.stringify(updatedSnapshot),
+          nowTimestamp,
+        ]
+      );
+
+      const fullUpdated = await this.fetchFullTransactionById(client, userId, transactionId);
+
+      await client.query('COMMIT');
+
+      await this.invalidateUserTransactionsCache(userId);
+      try {
+        await redis.set(
+          this.getTxItemCacheKey(userId, transactionId),
+          JSON.stringify(fullUpdated),
+          'EX',
+          300
+        );
+      } catch {
+        /* Redis fallback */
+      }
+
+      return fullUpdated;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async deleteTransaction(userId: number, transactionId: number, cascade: DeleteCascadeMode = DeleteCascadeMode.SINGLE) {
@@ -580,8 +724,8 @@ export class TransactionsService {
 
   async toggleTransactionVisibility(userId: number, transactionId: number) {
     const existing = await dbPool.query(
-      `SELECT id, status FROM transactions WHERE id = $1 AND user_id = $2`,
-      [transactionId, userId]
+      `SELECT id, status FROM transactions WHERE id = $1 AND user_id = $2 AND status != $3`,
+      [transactionId, userId, RecordStatus.DELETED]
     );
 
     if (existing.rows.length === 0) {
@@ -590,38 +734,109 @@ export class TransactionsService {
 
     const newStatus = existing.rows[0].status === RecordStatus.HIDDEN ? RecordStatus.ACTIVE : RecordStatus.HIDDEN;
 
-    const result = await dbPool.query(
+    await dbPool.query(
       `UPDATE transactions
        SET status = $1, updated_at = $2
-       WHERE id = $3 AND user_id = $4
-       RETURNING id, user_id, category_id, account_id, type, amount, description, notes,
-                 date, has_time, status, is_installment, installment_number,
-                 total_installments, installment_group_id, created_at, updated_at`,
+       WHERE id = $3 AND user_id = $4`,
       [newStatus, Date.now(), transactionId, userId]
     );
 
+    const fullUpdated = await this.fetchFullTransactionById(dbPool, userId, transactionId);
+
     await this.invalidateUserTransactionsCache(userId);
-    return this.mapTransactionRow(result.rows[0]);
+    try {
+      await redis.set(
+        this.getTxItemCacheKey(userId, transactionId),
+        JSON.stringify(fullUpdated),
+        'EX',
+        300
+      );
+    } catch {
+      /* Redis fallback */
+    }
+
+    return fullUpdated;
+  }
+
+  private async fetchFullTransactionById(
+    runner: { query: (text: string, params?: any[]) => Promise<{ rows: any[] }> },
+    userId: number,
+    transactionId: number
+  ) {
+    const query = `
+      SELECT
+        t.id, t.user_id, t.category_id, t.account_id, t.type, t.amount, t.description, t.notes,
+        t.date, t.has_time, t.status, t.is_installment, t.installment_number,
+        t.total_installments, t.installment_group_id,
+        t.is_modified, t.modified_at, t.updated_by_user_id,
+        t.created_at, t.updated_at,
+        c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
+        a.name AS account_name, a.type AS account_type, a.icon AS account_icon, a.color AS account_color,
+        u_mod.username AS updated_by_username, u_mod.email AS updated_by_email
+      FROM transactions t
+      JOIN categories c ON c.id = t.category_id
+      JOIN accounts a ON a.id = t.account_id
+      LEFT JOIN users u_mod ON u_mod.id = t.updated_by_user_id
+      WHERE t.id = $1 AND t.user_id = $2
+    `;
+
+    const result = await runner.query(query, [transactionId, userId]);
+    if (result.rows.length === 0) {
+      throw new NotFoundError('Gasto não encontrado.');
+    }
+
+    return this.mapJoinedTransactionRow(result.rows[0]);
   }
 
   private async invalidateUserTransactionsCache(userId: number): Promise<void> {
     try {
-      /* Invalidação em massa de chaves temporárias do usuário usando SCAN */
-      const pattern = `${this.getSummaryCachePrefix(userId)}:*`;
-      const stream = redis.scanStream({ match: pattern });
-      stream.on('data', async (keys: string[]) => {
-        if (keys.length) {
+      /* Invalidação síncrona e garantida em massa via SCAN + PIPELINE DEL antes de responder ao cliente */
+      const pattern = `${this.getTxCachePrefix(userId)}:*`;
+      let cursor = '0';
+      do {
+        const [nextCursor, keys] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+        cursor = nextCursor;
+        if (keys.length > 0) {
           const pipeline = redis.pipeline();
           keys.forEach((k) => pipeline.del(k));
           await pipeline.exec();
         }
-      });
+      } while (cursor !== '0');
     } catch {
       /* Redis fallback */
     }
   }
 
-  private mapTransactionRow(row: any, category?: any, account?: any) {
+  private mapJoinedTransactionRow(row: any) {
+    const updatedBy =
+      row.updated_by_user_id && row.updated_by_username
+        ? {
+            id: Number(row.updated_by_user_id),
+            username: row.updated_by_username,
+            email: row.updated_by_email ?? undefined,
+          }
+        : null;
+
+    return this.mapTransactionRow(
+      row,
+      {
+        id: Number(row.category_id),
+        name: row.category_name,
+        icon: row.category_icon,
+        color: row.category_color,
+      },
+      {
+        id: Number(row.account_id),
+        name: row.account_name,
+        type: row.account_type,
+        icon: row.account_icon,
+        color: row.account_color,
+      },
+      updatedBy
+    );
+  }
+
+  private mapTransactionRow(row: any, category?: any, account?: any, updatedBy?: any) {
     return {
       id: Number(row.id),
       user_id: Number(row.user_id),
@@ -655,6 +870,10 @@ export class TransactionsService {
       installment_number: row.installment_number ? Number(row.installment_number) : null,
       total_installments: row.total_installments ? Number(row.total_installments) : null,
       installment_group_id: row.installment_group_id || null,
+      is_modified: Boolean(row.is_modified),
+      modified_at: row.modified_at ? Number(row.modified_at) : null,
+      updated_by_user_id: row.updated_by_user_id ? Number(row.updated_by_user_id) : null,
+      updated_by: updatedBy ?? null,
       created_at: Number(row.created_at),
       updated_at: Number(row.updated_at),
     };

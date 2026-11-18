@@ -27,6 +27,12 @@ export const transactionAccountRelationSchema = z.object({
   color: z.string(),
 });
 
+export const transactionModifierUserSchema = z.object({
+  id: z.number().int().positive(),
+  username: z.string(),
+  email: z.string().optional(),
+});
+
 export const transactionResponseSchema = z.object({
   id: z.number().int().positive().describe('ID numérico crescente do gasto'),
   user_id: z.number().int().positive(),
@@ -45,6 +51,10 @@ export const transactionResponseSchema = z.object({
   installment_number: z.number().int().nullable().optional(),
   total_installments: z.number().int().nullable().optional(),
   installment_group_id: z.string().uuid().nullable().optional(),
+  is_modified: z.boolean().default(false),
+  modified_at: z.number().int().nullable().optional(),
+  updated_by_user_id: z.number().int().positive().nullable().optional(),
+  updated_by: transactionModifierUserSchema.nullable().optional(),
   created_at: z.number().int(),
   updated_at: z.number().int(),
 });
@@ -83,6 +93,7 @@ export const updateTransactionBodySchema = z.object({
   has_time: z.boolean().optional(),
   category_id: z.number().int().positive().optional(),
   account_id: z.number().int().positive().optional(),
+  type: transactionTypeSchema.optional(),
   status: transactionStatusSchema.optional(),
 });
 
