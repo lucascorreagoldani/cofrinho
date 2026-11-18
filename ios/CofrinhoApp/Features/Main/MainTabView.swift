@@ -5,7 +5,11 @@ import Charts
 /// Organizada em 5 abas: Início | Extrato | Lançamento | Objetivos | Perfil.
 public struct MainTabView: View {
     @Bindable var viewModel: AuthViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var selectedTab: TabItem = .home
+    @State private var showMoneyTipSuggestion: Bool = false
+    @State private var pendingQuickLaunchType: TransactionType? = nil
 
     public enum TabItem: Hashable {
         case home
@@ -19,6 +23,10 @@ public struct MainTabView: View {
         self.viewModel = viewModel
     }
 
+    private var overlayAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.42, bounce: 0.16)
+    }
+
     public var body: some View {
         let preferredType = viewModel.currentPreferences?.defaultTransactionTypeEnum ?? .expense
 
@@ -28,7 +36,9 @@ public struct MainTabView: View {
                 token: viewModel.token ?? "",
                 userId: viewModel.currentUser?.id ?? 0,
                 defaultTransactionType: preferredType,
-                isSelected: selectedTab == .home
+                isSelected: selectedTab == .home,
+                showMoneyTipSuggestion: $showMoneyTipSuggestion,
+                pendingQuickLaunchType: $pendingQuickLaunchType
             )
             .tabItem {
                 Label("Início", systemImage: "house.fill")
@@ -86,6 +96,30 @@ public struct MainTabView: View {
                 .tag(TabItem.profile)
         }
         .tint(Color.blue)
+        .blur(radius: showMoneyTipSuggestion ? 14 : 0)
+        .scaleEffect(showMoneyTipSuggestion ? 0.97 : 1.0)
+        .allowsHitTesting(!showMoneyTipSuggestion)
+        .animation(overlayAnimation, value: showMoneyTipSuggestion)
+        .overlay {
+            if showMoneyTipSuggestion {
+                MoneyTipSpotlightOverlay(
+                    onSelectType: { selectedType in
+                        withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.32, bounce: 0.12)) {
+                            showMoneyTipSuggestion = false
+                        }
+                        pendingQuickLaunchType = selectedType
+                    },
+                    onDismiss: {
+                        withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(duration: 0.34, bounce: 0.12)) {
+                            showMoneyTipSuggestion = false
+                        }
+                    }
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.94)))
+                .zIndex(100)
+            }
+        }
+        .animation(overlayAnimation, value: showMoneyTipSuggestion)
     }
 }
 
@@ -116,12 +150,14 @@ public struct HomeHubView: View {
     let defaultTransactionType: TransactionType
     let isSelected: Bool
 
+    @Binding var showMoneyTipSuggestion: Bool
+    @Binding var pendingQuickLaunchType: TransactionType?
+
     @State private var transactions: [TransactionModel] = []
     @State private var isLoading: Bool = false
     @State private var chartScope: ChartScope = .total
 
     @State private var hasDismissedHelpButton: Bool
-    @State private var showMoneyTipSuggestion: Bool = false
 
     @State private var launchSheetRequest: LaunchSheetRequest? = nil
     @State private var didCreateTransactionInSheet: Bool = false
@@ -130,12 +166,16 @@ public struct HomeHubView: View {
         token: String,
         userId: Int = 0,
         defaultTransactionType: TransactionType = .expense,
-        isSelected: Bool = true
+        isSelected: Bool = true,
+        showMoneyTipSuggestion: Binding<Bool> = .constant(false),
+        pendingQuickLaunchType: Binding<TransactionType?> = .constant(nil)
     ) {
         self.token = token
         self.userId = userId
         self.defaultTransactionType = defaultTransactionType
         self.isSelected = isSelected
+        self._showMoneyTipSuggestion = showMoneyTipSuggestion
+        self._pendingQuickLaunchType = pendingQuickLaunchType
         let dismissed = UserDefaults.standard.bool(forKey: AuthViewModel.homeMoneyTipDismissedKey(for: userId))
         self._hasDismissedHelpButton = State(initialValue: dismissed)
     }
@@ -196,32 +236,6 @@ public struct HomeHubView: View {
         return highest * 1.28
     }
 
-    private var moneyTipAttributedText: AttributedString {
-        var prefix = AttributedString("Aqui fica o seu saldo disponível, adicione um lançamento de ")
-
-        var incomeLink = AttributedString("RECEITA")
-        incomeLink.link = URL(string: "cofrinho-hub://launch/income")
-        incomeLink.foregroundColor = .green
-        incomeLink.underlineStyle = .single
-        incomeLink.font = .subheadline.bold()
-
-        let middle = AttributedString(" e lançamentos de ")
-
-        var expenseLink = AttributedString("GASTO")
-        expenseLink.link = URL(string: "cofrinho-hub://launch/expense")
-        expenseLink.foregroundColor = .red
-        expenseLink.underlineStyle = .single
-        expenseLink.font = .subheadline.bold()
-
-        let suffix = AttributedString(" para visualizar a movimentação do seu dinheiro.")
-
-        prefix.append(incomeLink)
-        prefix.append(middle)
-        prefix.append(expenseLink)
-        prefix.append(suffix)
-        return prefix
-    }
-
     public var body: some View {
         NavigationStack {
             ScrollView {
@@ -257,6 +271,11 @@ public struct HomeHubView: View {
                 Task {
                     await loadSummaryData()
                 }
+            }
+            .onChange(of: pendingQuickLaunchType) { _, newType in
+                guard let newType else { return }
+                pendingQuickLaunchType = nil
+                openLaunchSheet(with: newType)
             }
             .sheet(
                 item: $launchSheetRequest,
@@ -381,82 +400,6 @@ public struct HomeHubView: View {
                     .font(.system(size: 36, weight: .bold, design: .rounded))
                     .foregroundStyle(availableBalance >= 0 ? Color.primary : Color.red)
                     .contentTransition(.numericText())
-            }
-
-            if showMoneyTipSuggestion {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Label("Como funciona seu saldo", systemImage: "lightbulb.fill")
-                            .font(.caption.bold())
-                            .foregroundStyle(Color.blue)
-                        Spacer()
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                showMoneyTipSuggestion = false
-                            }
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Fechar sugestão")
-                    }
-
-                    Text(moneyTipAttributedText)
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .environment(\.openURL, OpenURLAction { url in
-                            if url.absoluteString == "cofrinho-hub://launch/income" {
-                                openLaunchSheet(with: .income)
-                                return .handled
-                            }
-                            if url.absoluteString == "cofrinho-hub://launch/expense" {
-                                openLaunchSheet(with: .expense)
-                                return .handled
-                            }
-                            return .systemAction
-                        })
-
-                    HStack(spacing: 10) {
-                        Button {
-                            openLaunchSheet(with: .income)
-                        } label: {
-                            Label("Adicionar Receita", systemImage: "arrow.down.circle.fill")
-                                .font(.caption.bold())
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .frame(maxWidth: .infinity)
-                                .background(Color.green.opacity(0.14))
-                                .foregroundStyle(Color.green)
-                                .clipShape(.rect(cornerRadius: 10))
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            openLaunchSheet(with: .expense)
-                        } label: {
-                            Label("Adicionar Gasto", systemImage: "arrow.up.circle.fill")
-                                .font(.caption.bold())
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .frame(maxWidth: .infinity)
-                                .background(Color.red.opacity(0.14))
-                                .foregroundStyle(Color.red)
-                                .clipShape(.rect(cornerRadius: 10))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(14)
-                .background(Color.blue.opacity(0.08))
-                .clipShape(.rect(cornerRadius: 14))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.blue.opacity(0.22), lineWidth: 1)
-                )
-                .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             Divider()
@@ -597,10 +540,8 @@ public struct HomeHubView: View {
         let haptic = UIImpactFeedbackGenerator(style: .light)
         haptic.impactOccurred()
         UserDefaults.standard.set(true, forKey: AuthViewModel.homeMoneyTipDismissedKey(for: userId))
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-            hasDismissedHelpButton = true
-            showMoneyTipSuggestion = true
-        }
+        hasDismissedHelpButton = true
+        showMoneyTipSuggestion = true
     }
 
     private func syncHelpFlagForCurrentUser() {
@@ -637,6 +578,232 @@ public struct HomeHubView: View {
                 category: .network
             )
         }
+    }
+}
+
+/// Overlay em tela cheia com fundo em blur (.ultraThinMaterial) e composição Apple HIG
+/// acionado pelo botão "?" de "Meu dinheiro", com atalhos diretos para RECEITA e GASTO.
+private struct MoneyTipSpotlightOverlay: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var symbolBounceTrigger: Bool = false
+
+    let onSelectType: (TransactionType) -> Void
+    let onDismiss: () -> Void
+
+    private var tipAttributedText: AttributedString {
+        var prefix = AttributedString("Aqui fica o seu saldo disponível, adicione um lançamento de ")
+
+        var incomeLink = AttributedString("RECEITA")
+        incomeLink.link = URL(string: "cofrinho-hub://launch/income")
+        incomeLink.foregroundColor = .green
+        incomeLink.underlineStyle = .single
+        incomeLink.font = .body.weight(.semibold)
+
+        let middle = AttributedString(" e lançamentos de ")
+
+        var expenseLink = AttributedString("GASTO")
+        expenseLink.link = URL(string: "cofrinho-hub://launch/expense")
+        expenseLink.foregroundColor = .red
+        expenseLink.underlineStyle = .single
+        expenseLink.font = .body.weight(.semibold)
+
+        let suffix = AttributedString(" para visualizar a movimentação do seu dinheiro.")
+
+        prefix.append(incomeLink)
+        prefix.append(middle)
+        prefix.append(expenseLink)
+        prefix.append(suffix)
+        return prefix
+    }
+
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .ignoresSafeArea()
+                .overlay {
+                    Color.black
+                        .opacity(colorScheme == .dark ? 0.36 : 0.14)
+                        .ignoresSafeArea()
+                }
+                .onTapGesture {
+                    let haptic = UISelectionFeedbackGenerator()
+                    haptic.selectionChanged()
+                    onDismiss()
+                }
+
+            VStack(alignment: .leading, spacing: 22) {
+                HStack(alignment: .top) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(colorScheme == .dark ? 0.22 : 0.12))
+                            .frame(width: 52, height: 52)
+
+                        Image(systemName: "wallet.pass.fill")
+                            .font(.system(size: 24, weight: .semibold))
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(Color.blue)
+                            .symbolEffect(.bounce.up.byLayer, value: symbolBounceTrigger)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        let haptic = UISelectionFeedbackGenerator()
+                        haptic.selectionChanged()
+                        onDismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 32, height: 32)
+                            .background(Color.primary.opacity(0.07))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Fechar apresentação")
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Meu dinheiro")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.blue)
+                        .textCase(.uppercase)
+                        .tracking(0.6)
+
+                    Text("Acompanhe seu saldo em tempo real")
+                        .font(.title2.bold())
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(tipAttributedText)
+                        .font(.body)
+                        .lineSpacing(4)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .tint(.primary)
+                        .environment(\.openURL, OpenURLAction { url in
+                            if url.absoluteString == "cofrinho-hub://launch/income" {
+                                onSelectType(.income)
+                                return .handled
+                            }
+                            if url.absoluteString == "cofrinho-hub://launch/expense" {
+                                onSelectType(.expense)
+                                return .handled
+                            }
+                            return .systemAction
+                        })
+                }
+
+                VStack(spacing: 0) {
+                    spotlightActionRow(
+                        title: "Lançar uma Receita",
+                        subtitle: "Salário, Pix recebido ou entrada extra",
+                        icon: "arrow.down.left.circle.fill",
+                        tint: .green
+                    ) {
+                        onSelectType(.income)
+                    }
+
+                    Divider()
+                        .padding(.leading, 58)
+
+                    spotlightActionRow(
+                        title: "Lançar um Gasto",
+                        subtitle: "Compras do dia, cartão ou contas",
+                        icon: "arrow.up.right.circle.fill",
+                        tint: .red
+                    ) {
+                        onSelectType(.expense)
+                    }
+                }
+                .background(Color(.secondarySystemGroupedBackground).opacity(colorScheme == .dark ? 0.72 : 0.85))
+                .clipShape(.rect(cornerRadius: 18, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                )
+
+                Button {
+                    let haptic = UISelectionFeedbackGenerator()
+                    haptic.selectionChanged()
+                    onDismiss()
+                } label: {
+                    Text("Entendi")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.primary)
+                        .foregroundStyle(Color(.systemBackground))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(24)
+            .frame(maxWidth: 420)
+            .background(.regularMaterial)
+            .clipShape(.rect(cornerRadius: 30, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(colorScheme == .dark ? 0.22 : 0.65),
+                                Color.white.opacity(0.04)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.45 : 0.16), radius: 32, y: 14)
+            .padding(.horizontal, 20)
+        }
+        .onAppear {
+            symbolBounceTrigger.toggle()
+        }
+    }
+
+    private func spotlightActionRow(
+        title: String,
+        subtitle: String,
+        icon: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            let haptic = UIImpactFeedbackGenerator(style: .medium)
+            haptic.impactOccurred()
+            action()
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 28))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(tint)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

@@ -17,7 +17,7 @@
   - A barra inferior (`MainTabView`) segue exatamente a ordem: **`Início` (`house.fill`) | `Extrato` (`list.bullet.rectangle.portrait.fill`) | `Lançamento` (`plus.circle.fill`) | `Objetivos` (`target`) | `Perfil` (`person.crop.circle.fill`)**.
   - A aba **`Início`** (`HomeHubView`) reúne:
     - Botão de destaque **`Novo Lançamento`**, abrindo sheet modal com `NavigationStack` idêntico ao botão `+` do `Extrato`.
-    - Card **`Meu dinheiro`** com saldo disponível (`Receitas - Gastos`), resumo de entradas/saídas e botão **`?`** no canto superior direito que, ao ser clicado, **some permanentemente naquela conta** (voltando apenas ao trocar de conta ou reinstalar o app) e exibe a sugestão com hiperlinks clicáveis para pré-selecionar **`RECEITA`** ou **`GASTO`**.
+    - Card **`Meu dinheiro`** com saldo disponível (`Receitas - Gastos`), resumo de entradas/saídas e botão **`?`** no canto superior direito que, ao ser clicado, **some permanentemente naquela conta** (voltando apenas ao trocar de conta ou reinstalar o app) e abre um **overlay em tela cheia com fundo em blur** (`.ultraThinMaterial` + `.blur` sobre a `TabView`), tipografia editorial Apple HIG, hierarquia de SF Symbols animados e atalhos interativos diretos para **`RECEITA`** e **`GASTO`**.
     - Card de gráfico **`Gastos x Receita`** em **`Swift Charts`** (`BarMark`) exibindo os valores atuais consolidados (com alternância `Geral` / `Este Mês`).
 - **Fluxo de Lançamentos (`Lançamento` / `Novo Lançamento`)**:
   - Permite alternar entre **`Gasto`** (`expense`) e **`Receita`** (`income`) via enum `TransactionType`.
