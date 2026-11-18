@@ -11,6 +11,7 @@ public struct NewExpenseView: View {
 
     @State private var viewModel: NewExpenseViewModel
     let token: String
+    private let defaultType: TransactionType
     private let onSaved: (() -> Void)?
 
     @FocusState private var focusedField: FormField?
@@ -22,6 +23,7 @@ public struct NewExpenseView: View {
         onSaved: (() -> Void)? = nil
     ) {
         self.token = token
+        self.defaultType = defaultType
         self.onSaved = onSaved
         self._viewModel = State(initialValue: NewExpenseViewModel(initialDate: initialDate, defaultType: defaultType))
     }
@@ -489,7 +491,18 @@ public struct NewExpenseView: View {
             }
         }
         .task {
+            if viewModel.defaultType != defaultType {
+                viewModel.applyDefaultType(defaultType)
+            }
             await viewModel.loadInitialData(token: token)
+        }
+        .onAppear {
+            if viewModel.defaultType != defaultType {
+                viewModel.applyDefaultType(defaultType)
+            }
+        }
+        .onChange(of: defaultType) { _, newValue in
+            viewModel.applyDefaultType(newValue)
         }
         .sheet(isPresented: $viewModel.showCreateCategorySheet) {
             CreateCategorySheetView(viewModel: viewModel, token: token)

@@ -48,7 +48,7 @@ public final class NewExpenseViewModel {
     private let accountsAPI = AccountsAPIService.shared
     private let transactionsAPI = TransactionsAPIService.shared
     private let initialDate: Date?
-    private let defaultType: TransactionType
+    public private(set) var defaultType: TransactionType
 
     private static var lastRemoteSyncTimestamp: TimeInterval = 0
     private static var cachedRemoteSuggestions: [SuggestionItemDTO] = []
@@ -63,6 +63,12 @@ public final class NewExpenseViewModel {
         self.defaultType = defaultType
         self.selectedDate = initialDate ?? Date()
         self.selectedType = defaultType
+    }
+
+    /// Atualiza em tempo real o tipo padrão de lançamento quando alterado nas preferências do usuário.
+    public func applyDefaultType(_ newType: TransactionType) {
+        self.defaultType = newType
+        self.selectedType = newType
     }
 
     // MARK: - Formatação Monetária

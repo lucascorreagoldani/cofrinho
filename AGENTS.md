@@ -22,8 +22,9 @@ All code and design contributions must follow:
 - **Timestamps**: Stored strictly as numeric Unix epoch milliseconds (`BIGINT` in Postgres, `number` / `Date.now()` in TypeScript and Redis). ISO date strings (`TIMESTAMPTZ`) are eliminated from database storage.
 
 ### 2. Public API vs. Private API & Enum-Driven User Autonomy
-- **API Pública (`/v1/public/*`)**: Unauthenticated endpoints (`GET /v1/public/status`, `GET /v1/public/enums`, `GET /v1/public/time`) cached in Redis (`cofrinho:public:enums`), serving canonical system ENUMs (`transaction_types`, `sync_statuses`, `frequencies`, `budget_periods`), personalization catalogs (`category_icons`, `account_icons`, `colors`), and server health/time telemetry.
+- **API Pública (`/v1/public/*`)**: Unauthenticated endpoints (`GET /v1/public/status`, `GET /v1/public/enums`, `GET /v1/public/time`) cached in Redis (`cofrinho:public:enums`), serving canonical system ENUMs (`record_status`, `transaction_filter_status`, `transaction_type`, `account_type`, `delete_cascade_mode`, `session_status`, `error_log_status`), personalization catalogs (`category_icons`, `account_icons`, `colors`), and server health/time telemetry.
 - **API Privada (`/v1/*`)**: Session/Bearer authenticated endpoints strictly scoped by `user_id` (`REFERENCES users(id)`), exposing full CRUD with validation and per-user Redis cache invalidation for `transactions`, `categories`, `accounts`, `users/preferences` (including `default_transaction_type`), budgets, and goals.
+- **iOS Navigation Hub (`Início`)**: Bottom `TabView` organizes the 5 canonical tabs (`Início | Extrato | Lançamento | Objetivos | Perfil`), where `HomeHubView` delivers instant balance, one-time per-account `?` onboarding suggestion (`RECEITA`/`GASTO` deep links), quick modal launch sheet, `Swift Charts` income vs. expense comparison, and live preference updates (`default_transaction_type`) without app restart.
 - **POO, SOLID & Autonomy**: Domain types follow strong ENUM contracts while allowing users full customization and CRUD autonomy over their personal categories, accounts, colors, icons, and launch defaults.
 
 ### 3. Audit Trail & Visual Privacy Standards

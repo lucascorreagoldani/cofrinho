@@ -170,6 +170,25 @@ public final class LocalDataManager {
             .map { $0.toModel() }
     }
 
+    /// Busca todas as transações ativas cacheadas no SwiftData ordenadas por data decrescente para o Hub Início.
+    public func fetchAllActiveCachedTransactions(userId: Int? = nil) -> [TransactionModel] {
+        let activeRaw = RecordStatus.active.rawValue
+        let descriptor = FetchDescriptor<LocalTransaction>(
+            predicate: #Predicate { $0.status == activeRaw },
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
+        )
+
+        let entities = (try? context.fetch(descriptor)) ?? []
+        return entities
+            .filter { item in
+                if let userId, userId > 0, item.userId != userId {
+                    return false
+                }
+                return true
+            }
+            .map { $0.toModel() }
+    }
+
     /// Salva um novo lançamento localmente quando o dispositivo estiver offline.
     @discardableResult
     public func saveOfflineTransaction(

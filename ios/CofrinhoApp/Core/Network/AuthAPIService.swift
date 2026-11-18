@@ -38,6 +38,20 @@ public struct UserPreferencesDTO: Codable, Sendable {
     public var defaultTransactionType: String?
     public let updatedAt: Int
 
+    public init(
+        userId: Int,
+        fastLogin: Bool = true,
+        verification: Bool = false,
+        defaultTransactionType: String? = TransactionType.expense.rawValue,
+        updatedAt: Int = Int(Date().timeIntervalSince1970 * 1000)
+    ) {
+        self.userId = userId
+        self.fastLogin = fastLogin
+        self.verification = verification
+        self.defaultTransactionType = defaultTransactionType
+        self.updatedAt = updatedAt
+    }
+
     enum CodingKeys: String, CodingKey {
         case userId = "user_id"
         case fastLogin = "fast_login"

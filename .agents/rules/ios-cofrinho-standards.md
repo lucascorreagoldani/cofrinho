@@ -13,9 +13,15 @@
   - SwiftData (`LocalTransaction`, `LocalCategory`, `LocalAccount`) como base local reativa sincronizada com o backend PostgreSQL.
 - **Formatação de Dados**:
   - Utilizar sempre `FormatStyle` nativo para moeda (`.currency(code: "BRL")`), números e datas (incluindo exibição condicional de horário quando presente).
-- **Fluxo de Lançamentos (`Novo Lançamento`)**:
-  - A aba e tela inicial padrão é **`Novo Lançamento`**, permitindo alternar entre **`Gasto`** (`expense`) e **`Receita`** (`income`) via enum `TransactionType`.
-  - Respeitar `defaultTransactionType` das preferências do usuário ao inicializar ou resetar o formulário, e ocultar/desativar parcelamento quando o tipo for `.income`.
+- **Navegação Principal & Hub `Início` (5 Abas)**:
+  - A barra inferior (`MainTabView`) segue exatamente a ordem: **`Início` (`house.fill`) | `Extrato` (`list.bullet.rectangle.portrait.fill`) | `Lançamento` (`plus.circle.fill`) | `Objetivos` (`target`) | `Perfil` (`person.crop.circle.fill`)**.
+  - A aba **`Início`** (`HomeHubView`) reúne:
+    - Botão de destaque **`Novo Lançamento`**, abrindo sheet modal com `NavigationStack` idêntico ao botão `+` do `Extrato`.
+    - Card **`Meu dinheiro`** com saldo disponível (`Receitas - Gastos`), resumo de entradas/saídas e botão **`?`** no canto superior direito que, ao ser clicado, **some permanentemente naquela conta** (voltando apenas ao trocar de conta ou reinstalar o app) e exibe a sugestão com hiperlinks clicáveis para pré-selecionar **`RECEITA`** ou **`GASTO`**.
+    - Card de gráfico **`Gastos x Receita`** em **`Swift Charts`** (`BarMark`) exibindo os valores atuais consolidados (com alternância `Geral` / `Este Mês`).
+- **Fluxo de Lançamentos (`Lançamento` / `Novo Lançamento`)**:
+  - Permite alternar entre **`Gasto`** (`expense`) e **`Receita`** (`income`) via enum `TransactionType`.
+  - Respeitar `defaultTransactionType` das preferências do usuário em **tempo real** (via `.onChange(of: defaultType)` e `applyDefaultType`, sem exigir reinício do app) e ocultar/desativar parcelamento quando o tipo for `.income`.
   - Oferecer toggle opcional **`Incluir horário específico`** (`hasTime`): preserva hora/minuto escolhidos quando ativo e normaliza para `12:00:00` local quando inativo (compatível com detecção visual no extrato).
 - **Auditoria & Privacidade Visual**:
   - Exibir rastreabilidade completa de autoria no detalhe do lançamento: **`Adicionado por: @username`** (+ data/hora de criação) e, quando modificado, **`Modificado por: @username`** (+ data/hora da modificação).
