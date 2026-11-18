@@ -8,6 +8,9 @@ public struct TransactionsListView: View {
     let token: String
     let defaultTransactionType: TransactionType
 
+    @Binding var activeHelpNotice: HelpNoticeItem?
+    @Binding var pendingQuickLaunchType: TransactionType?
+
     @State private var transactions: [TransactionModel] = []
     @State private var isLoading: Bool = false
     @State private var isLoadingMore: Bool = false
@@ -32,6 +35,7 @@ public struct TransactionsListView: View {
     @State private var showNewExpenseSheet: Bool = false
     @State private var didCreateExpenseInSheet: Bool = false
     @State private var newExpenseInitialDate: Date = Date()
+    @State private var newExpenseLaunchType: TransactionType = .expense
     @State private var newExpenseSheetSessionId: UUID = UUID()
     @State private var showFilterSheet: Bool = false
     @State private var showMonthYearPicker: Bool = false
@@ -51,9 +55,16 @@ public struct TransactionsListView: View {
 
     @State private var activeError: (any AppErrorProtocol)?
 
-    public init(token: String, defaultTransactionType: TransactionType = .expense) {
+    public init(
+        token: String,
+        defaultTransactionType: TransactionType = .expense,
+        activeHelpNotice: Binding<HelpNoticeItem?> = .constant(nil),
+        pendingQuickLaunchType: Binding<TransactionType?> = .constant(nil)
+    ) {
         self.token = token
         self.defaultTransactionType = defaultTransactionType
+        self._activeHelpNotice = activeHelpNotice
+        self._pendingQuickLaunchType = pendingQuickLaunchType
     }
 
     private var hasActiveFilters: Bool {
@@ -278,6 +289,7 @@ public struct TransactionsListView: View {
                         Button {
                             didCreateExpenseInSheet = false
                             newExpenseInitialDate = Date()
+                            newExpenseLaunchType = defaultTransactionType
                             newExpenseSheetSessionId = UUID()
                             showNewExpenseSheet = true
                         } label: {
@@ -304,7 +316,7 @@ public struct TransactionsListView: View {
                     NewExpenseView(
                         token: token,
                         initialDate: newExpenseInitialDate,
-                        defaultType: defaultTransactionType,
+                        defaultType: newExpenseLaunchType,
                         onSaved: {
                             didCreateExpenseInSheet = true
                             showNewExpenseSheet = false
@@ -421,6 +433,15 @@ public struct TransactionsListView: View {
                 }
             }
             .handleAnyAppError($activeError)
+            .onChange(of: pendingQuickLaunchType) { _, newType in
+                guard let newType else { return }
+                pendingQuickLaunchType = nil
+                didCreateExpenseInSheet = false
+                newExpenseInitialDate = currentlyViewedDate
+                newExpenseLaunchType = newType
+                newExpenseSheetSessionId = UUID()
+                showNewExpenseSheet = true
+            }
             .task {
                 await loadAuxiliaryData()
                 await loadTransactions(reset: true)
@@ -495,55 +516,52 @@ public struct TransactionsListView: View {
             ScrollViewReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        Button {
-                            let haptic = UIImpactFeedbackGenerator(style: .light)
-                            haptic.impactOccurred()
+                        CofrinhoChipButton(
+                            title: "Mês Inteiro",
+                            isSelected: selectedDay == nil
+                        ) {
                             withAnimation(.easeInOut(duration: 0.2)) {
                                 selectedDay = nil
                             }
-                        } label: {
-                            Text("Mês Inteiro")
-                                .font(.caption.bold())
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(selectedDay == nil ? Color.blue : Color(.systemBackground))
-                                .foregroundStyle(selectedDay == nil ? Color.white : Color.primary)
-                                .clipShape(.rect(cornerRadius: 16))
-                                .shadow(color: Color.black.opacity(0.04), radius: 2, y: 1)
                         }
                         .id(-1)
-                        .buttonStyle(.plain)
 
                         ForEach(selectableDays, id: \.self) { day in
                             let isTodayChip = isCurrentMonthAndYear && day == todayDay
-                            Button {
-                                let haptic = UIImpactFeedbackGenerator(style: .light)
-                                haptic.impactOccurred()
+                            CofrinhoChipButton(
+                                title: isTodayChip ? String(format: "Hoje (%02d)", day) : String(format: "Dia %02d", day),
+                                isSelected: selectedDay == day,
+                                isMonospacedDigits: true
+                            ) {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     selectedDay = (selectedDay == day) ? nil : day
                                 }
-                            } label: {
-                                Text(isTodayChip ? String(format: "Hoje (%02d)", day) : String(format: "Dia %02d", day))
-                                    .font(.caption.bold().monospacedDigit())
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(selectedDay == day ? Color.blue : Color(.systemBackground))
-                                    .foregroundStyle(selectedDay == day ? Color.white : Color.primary)
-                                    .clipShape(.rect(cornerRadius: 16))
-                                    .shadow(color: Color.black.opacity(0.04), radius: 2, y: 1)
                             }
                             .id(day)
-                            .buttonStyle(.plain)
                         }
                     }
                     .padding(.vertical, 2)
                 }
                 .onAppear {
-                    proxy.scrollTo(selectedDay ?? -1, anchor: .center)
+                    focusSelectedDayChip(using: proxy, animated: false)
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(50))
+                        focusSelectedDayChip(using: proxy, animated: true)
+                    }
                 }
-                .onChange(of: selectedDay) { _, newDay in
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        proxy.scrollTo(newDay ?? -1, anchor: .center)
+                .onChange(of: selectableDays) { _, _ in
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(45))
+                        focusSelectedDayChip(using: proxy, animated: true)
+                    }
+                }
+                .onChange(of: selectedDay) { _, _ in
+                    focusSelectedDayChip(using: proxy, animated: true)
+                }
+                .onChange(of: selectedMonth) { _, _ in
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(45))
+                        focusSelectedDayChip(using: proxy, animated: true)
                     }
                 }
             }
@@ -680,9 +698,15 @@ public struct TransactionsListView: View {
                         .foregroundStyle(primaryColor)
                 }
                 Spacer()
-                Image(systemName: hasIncomes ? "chart.bar.doc.horizontal" : (installmentTotal > 0 ? "creditcard.and.123" : "chart.line.uptrend.xyaxis"))
-                    .font(.system(size: 28))
-                    .foregroundStyle(primaryColor.opacity(0.8))
+                HStack(spacing: 8) {
+                    Image(systemName: hasIncomes ? "chart.bar.doc.horizontal" : (installmentTotal > 0 ? "creditcard.and.123" : "chart.line.uptrend.xyaxis"))
+                        .font(.system(size: 26))
+                        .foregroundStyle(primaryColor.opacity(0.8))
+
+                    HelpNoticeTriggerButton(notice: HelpNoticeCatalog.statementOverview) { notice in
+                        activeHelpNotice = notice
+                    }
+                }
             }
 
             if hasIncomes || installmentTotal > 0 {
@@ -897,19 +921,18 @@ public struct TransactionsListView: View {
                         .clipShape(.rect(cornerRadius: 12))
                 }
             } else {
-                Button {
+                CofrinhoButton(
+                    title: "Adicionar Lançamento",
+                    systemImage: "plus",
+                    role: .primary,
+                    size: .regular,
+                    isFullWidth: false
+                ) {
                     didCreateExpenseInSheet = false
                     newExpenseInitialDate = currentlyViewedDate
+                    newExpenseLaunchType = defaultTransactionType
                     newExpenseSheetSessionId = UUID()
                     showNewExpenseSheet = true
-                } label: {
-                    Text("+ Adicionar Lançamento")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.blue)
-                        .clipShape(.rect(cornerRadius: 12))
                 }
                 .padding(.top, 8)
             }
@@ -922,6 +945,19 @@ public struct TransactionsListView: View {
     private var monthYearTitle: String {
         let monthName = Month(rawValue: selectedMonth)?.localizedName() ?? ""
         return "\(monthName) \(selectedYear)"
+    }
+
+    /// Centraliza ou posiciona o foco automático no chip do dia selecionado (ex: "Hoje (18)" à direita).
+    private func focusSelectedDayChip(using proxy: ScrollViewProxy, animated: Bool) {
+        let targetId = selectedDay ?? -1
+        let anchor: UnitPoint = (selectedDay != nil && selectedDay == selectableDays.last) ? .trailing : .center
+        if animated {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                proxy.scrollTo(targetId, anchor: anchor)
+            }
+        } else {
+            proxy.scrollTo(targetId, anchor: anchor)
+        }
     }
 
     /// Navegação inteligente por dia estritamente dentro dos chips do mês atual (`Mês Inteiro <-> Dias com Gastos`):
@@ -1124,24 +1160,19 @@ public struct TransactionsListView: View {
 
             LocalDataManager.shared.cacheTransactions(fetched)
             AppLogger.shared.info("Extrato atualizado (\(transactions.count) transações, status: \(filterStatus.rawValue)).", category: .business)
-        } catch let err as any AppErrorProtocol {
+        } catch {
             guard activeFetchToken == fetchToken else { return }
-            // Se offline e temos dados em cache ou fallback offline, opera silenciosamente
-            if isConnectionError(err) {
+            let normalized = CofrinhoErrorMapper.normalize(error)
+            if CofrinhoErrorMapper.isConnectivityIssue(normalized) {
                 loadTransactionsFromLocalCache()
                 if reset {
                     clearInvalidSelectedDayIfNeeded()
                 }
                 AppLogger.shared.info("Falha de conexão com a VPS. Mantendo extrato visível via cache SwiftData.", category: .network)
             } else {
-                self.activeError = err
-                AppLogger.shared.error("Erro ao carregar extrato: \(err.errorDescription ?? err.localizedDescription)", category: .network)
+                self.activeError = normalized
+                AppLogger.shared.error("Erro ao carregar extrato: \(normalized.errorDescription ?? error.localizedDescription)", category: .network)
             }
-        } catch {
-            guard activeFetchToken == fetchToken else { return }
-            let unk = NetworkError.unknown(reason: error.localizedDescription)
-            self.activeError = unk
-            AppLogger.shared.error("Erro ao carregar extrato: \(error.localizedDescription)", category: .network)
         }
     }
 
@@ -1190,20 +1221,16 @@ public struct TransactionsListView: View {
                 AppLogger.shared.info("Página \(nextPage) carregada com +\(fetched.count) gastos.", category: .business)
             } catch {
                 canLoadMore = false
+                let normalized = CofrinhoErrorMapper.normalize(error)
+                if !CofrinhoErrorMapper.isConnectivityIssue(normalized) {
+                    self.activeError = normalized
+                }
             }
         }
     }
 
     private func isConnectionError(_ error: any AppErrorProtocol) -> Bool {
-        if let netErr = error as? NetworkError {
-            switch netErr {
-            case .noConnection, .serverUnreachable, .timeout:
-                return true
-            default:
-                return false
-            }
-        }
-        return false
+        CofrinhoErrorMapper.isConnectivityIssue(error)
     }
 
     private func prepareDelete(_ tx: TransactionModel) {

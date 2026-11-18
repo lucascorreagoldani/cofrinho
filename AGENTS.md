@@ -24,16 +24,17 @@ All code and design contributions must follow:
 ### 2. Public API vs. Private API & Enum-Driven User Autonomy
 - **API Pública (`/v1/public/*`)**: Unauthenticated endpoints (`GET /v1/public/status`, `GET /v1/public/enums`, `GET /v1/public/time`) cached in Redis (`cofrinho:public:enums`), serving canonical system ENUMs (`record_status`, `transaction_filter_status`, `transaction_type`, `account_type`, `delete_cascade_mode`, `session_status`, `error_log_status`), personalization catalogs (`category_icons`, `account_icons`, `colors`), and server health/time telemetry.
 - **API Privada (`/v1/*`)**: Session/Bearer authenticated endpoints strictly scoped by `user_id` (`REFERENCES users(id)`), exposing full CRUD with validation and per-user Redis cache invalidation for `transactions`, `categories`, `accounts`, `users/preferences` (including `default_transaction_type`), budgets, and goals.
-- **iOS Navigation Hub (`Início`)**: Bottom `TabView` organizes the 5 canonical tabs (`Início | Extrato | Lançamento | Objetivos | Perfil`), where `HomeHubView` delivers instant balance, one-time per-account `?` onboarding suggestion (`RECEITA`/`GASTO` deep links), quick modal launch sheet, `Swift Charts` income vs. expense comparison, and live preference updates (`default_transaction_type`) without app restart.
+- **iOS Navigation Hub (`Início`) & POO Frameworks**: Bottom `TabView` organizes the 5 canonical tabs (`Início | Extrato | Lançamento | Objetivos | Perfil`), where `HomeHubView` delivers instant balance, permanent `?` contextual help overlays via the reusable POO `HelpNoticeProtocol`/`HelpSpotlightOverlayView` framework (`RECEITA`/`GASTO` deep links), reusable `CofrinhoButton`/`CofrinhoChipButton` POO controls, `Swift Charts` income vs. expense comparison, live preference updates (`default_transaction_type`) without app restart, and automatic day-bar focusing on today in `Extrato`.
 - **POO, SOLID & Autonomy**: Domain types follow strong ENUM contracts while allowing users full customization and CRUD autonomy over their personal categories, accounts, colors, icons, and launch defaults.
 
 ### 3. Audit Trail & Visual Privacy Standards
 - **Creator & Modifier Tracking**: `transactions` records both `created_by_user_id` / `created_at` and `updated_by_user_id` / `updated_at`, plus immutable edit history in `transaction_modifications`.
 - **`@username`-Only Exposure**: Audit responses (`created_by`, `updated_by`) expose `{ id, username }` without email addresses; the iOS UI displays strictly `@username`.
-- **Global UI Semantic Colors (iOS)**: **Editar** actions MUST always use **Orange (`Color.orange`)**; **Excluir / Apagar** actions MUST always use **Red (`Color.red`)** across swipe actions, menus, and management views.
+- **Global UI Semantic Colors (iOS)**: **Editar** actions MUST always use **Orange (`Color.orange`)**; **Excluir / Apagar** actions MUST always use **Red (`Color.red`)** across swipe actions, menus, and management views (enforced via `CofrinhoButtonSemanticRole`).
 
 ### 4. Error & Incident Architecture
 - **RFC 9457 Problem Details**: Standardized error responses with `type`, `title`, `status`, `detail`, `code`, `incidentId`, and `timestamp`.
+- **iOS Universal Error Handling**: Every iOS screen and asynchronous boundary normalizes failures through `CofrinhoErrorMapper` / `AppErrorProtocol` and presents alerts via `.handleAnyAppError(...)` / `.handleAppError(...)`.
 - **ErrorAuditor**: Centralized auditor persisting critical exceptions into the PostgreSQL `log_errors` table with stack traces and context payloads, returning an actionable `incidentId` ticket for client support.
 - **Single-Line Comments Rule**: In Java/TypeScript, single-line comments (`//`) are strictly prohibited. Always use block comments (`/* ... */`) or Javadoc (`/** ... */`).
 

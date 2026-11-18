@@ -45,10 +45,6 @@ public final class AuthViewModel {
     private let cachedUserKey = "cofrinho_cached_user_json"
     private let cachedPrefsKey = "cofrinho_cached_prefs_json"
 
-    public static func homeMoneyTipDismissedKey(for userId: Int) -> String {
-        "cofrinho_home_money_tip_dismissed_user_\(userId)"
-    }
-
     public init() {
         checkSavedSessionOnLaunch()
     }
@@ -505,10 +501,6 @@ public final class AuthViewModel {
     }
 
     private func performSilentLogout() {
-        if let previousUserId = currentUser?.id {
-            UserDefaults.standard.removeObject(forKey: Self.homeMoneyTipDismissedKey(for: previousUserId))
-        }
-        UserDefaults.standard.removeObject(forKey: Self.homeMoneyTipDismissedKey(for: 0))
         KeychainHelper.shared.clearAll()
         UserDefaults.standard.removeObject(forKey: fastLoginKey)
         UserDefaults.standard.removeObject(forKey: biometryPrefKey)

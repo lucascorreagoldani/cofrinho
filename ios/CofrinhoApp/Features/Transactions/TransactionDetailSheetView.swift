@@ -727,56 +727,38 @@ public struct TransactionDetailSheetView: View {
         let isHidden = transaction.statusEnum == .hidden
 
         return VStack(spacing: 10) {
-            Button {
+            CofrinhoButton(
+                title: "Editar Informações do Lançamento",
+                systemImage: "pencil",
+                role: .editTinted,
+                size: .regular
+            ) {
                 beginFullEditing()
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "pencil")
-                    Text("Editar Informações do Lançamento")
-                        .font(.subheadline.bold())
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Color.orange.opacity(0.14))
-                .foregroundStyle(Color.orange)
-                .clipShape(.rect(cornerRadius: 12))
             }
             .disabled(isPerformingAction)
 
             HStack(spacing: 10) {
-                Button {
+                CofrinhoButton(
+                    title: isHidden ? "Desocultar" : "Ocultar",
+                    systemImage: isHidden ? "eye.fill" : "eye.slash.fill",
+                    role: .neutral,
+                    size: .regular
+                ) {
                     showVisibilityConfirmation = true
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: isHidden ? "eye.fill" : "eye.slash.fill")
-                        Text(isHidden ? "Desocultar" : "Ocultar")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color(.secondarySystemBackground))
-                    .foregroundStyle(.primary)
-                    .clipShape(.rect(cornerRadius: 12))
                 }
                 .disabled(isPerformingAction)
 
-                Button {
+                CofrinhoButton(
+                    title: "Excluir",
+                    systemImage: "trash.fill",
+                    role: .destructiveTinted,
+                    size: .regular
+                ) {
                     if transaction.isInstallment && (transaction.totalInstallments ?? 1) > 1 {
                         showInstallmentDeleteConfirmation = true
                     } else {
                         showSingleDeleteConfirmation = true
                     }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "trash.fill")
-                        Text("Excluir")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.red.opacity(0.14))
-                    .foregroundStyle(Color.red)
-                    .clipShape(.rect(cornerRadius: 12))
                 }
                 .disabled(isPerformingAction)
             }
@@ -1527,12 +1509,7 @@ public struct TransactionDetailSheetView: View {
     }
 
     private func isConnectionError(_ error: NetworkError) -> Bool {
-        switch error {
-        case .noConnection, .serverUnreachable, .timeout:
-            return true
-        default:
-            return false
-        }
+        CofrinhoErrorMapper.isConnectivityIssue(error)
     }
 
     private struct InstallmentScheduleRow: Identifiable {

@@ -267,7 +267,7 @@ public struct ProfileView: View {
                         .scaleEffect(0.8)
                 } else {
                     Button("Verificar") {
-                        Task { await refreshPublicApiStatus() }
+                        Task { await refreshPublicApiStatus(manual: true) }
                     }
                     .font(.caption.bold())
                     .foregroundStyle(Color.blue)
@@ -333,10 +333,18 @@ public struct ProfileView: View {
         return String(name.prefix(2)).uppercased()
     }
 
-    private func refreshPublicApiStatus() async {
+    private func refreshPublicApiStatus(manual: Bool = false) async {
         isCheckingPublicStatus = true
         defer { isCheckingPublicStatus = false }
-        publicStatus = try? await AuthAPIService.shared.fetchPublicStatus()
+        do {
+            publicStatus = try await AuthAPIService.shared.fetchPublicStatus()
+        } catch {
+            let normalized = CofrinhoErrorMapper.normalize(error)
+            AppLogger.shared.warning("Falha ao verificar status público: \(normalized.errorDescription ?? error.localizedDescription)", category: .network)
+            if manual {
+                viewModel.activeError = normalized
+            }
+        }
     }
 }
 

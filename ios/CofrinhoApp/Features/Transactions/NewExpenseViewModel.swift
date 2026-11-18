@@ -164,21 +164,23 @@ public final class NewExpenseViewModel {
         }
 
         // 3. Atualização paralela e resiliente de Categorias, Contas e Sugestões na VPS
-        async let catsTask: [CategoryModel]? = {
+        async let catsTask: ([CategoryModel]?, (any AppErrorProtocol)?) = {
             do {
-                return try await categoriesAPI.listCategories(token: token)
+                return (try await categoriesAPI.listCategories(token: token), nil)
             } catch {
-                AppLogger.shared.warning("Falha ao carregar categorias remotas: \(error.localizedDescription)", category: .network)
-                return nil
+                let normalized = CofrinhoErrorMapper.normalize(error)
+                AppLogger.shared.warning("Falha ao carregar categorias remotas: \(normalized.errorDescription ?? error.localizedDescription)", category: .network)
+                return (nil, normalized)
             }
         }()
 
-        async let accsTask: [AccountModel]? = {
+        async let accsTask: ([AccountModel]?, (any AppErrorProtocol)?) = {
             do {
-                return try await accountsAPI.listAccounts(token: token)
+                return (try await accountsAPI.listAccounts(token: token), nil)
             } catch {
-                AppLogger.shared.warning("Falha ao carregar contas remotas: \(error.localizedDescription)", category: .network)
-                return nil
+                let normalized = CofrinhoErrorMapper.normalize(error)
+                AppLogger.shared.warning("Falha ao carregar contas remotas: \(normalized.errorDescription ?? error.localizedDescription)", category: .network)
+                return (nil, normalized)
             }
         }()
 
@@ -191,7 +193,15 @@ public final class NewExpenseViewModel {
             }
         }()
 
-        let (loadedCats, loadedAccs, loadedSugg) = await (catsTask, accsTask, suggTask)
+        let ((loadedCats, catsErr), (loadedAccs, accsErr), loadedSugg) = await (catsTask, accsTask, suggTask)
+
+        if let catsErr, (!CofrinhoErrorMapper.isConnectivityIssue(catsErr) || self.categories.isEmpty) {
+            self.activeError = catsErr
+        }
+
+        if let accsErr, self.activeError == nil, (!CofrinhoErrorMapper.isConnectivityIssue(accsErr) || self.accounts.isEmpty) {
+            self.activeError = accsErr
+        }
 
         if let loadedCats {
             self.categories = loadedCats
@@ -389,12 +399,7 @@ public final class NewExpenseViewModel {
     }
 
     private func isConnectionError(_ error: NetworkError) -> Bool {
-        switch error {
-        case .noConnection, .serverUnreachable, .timeout:
-            return true
-        default:
-            return false
-        }
+        CofrinhoErrorMapper.isConnectivityIssue(error)
     }
 
     private func resetForm() {

@@ -27,6 +27,7 @@ struct ContentView: View {
         .onChange(of: scenePhase) { _, newPhase in
             authViewModel.handleScenePhaseChange(newPhase)
         }
+        .handleAnyAppError($authViewModel.activeError)
     }
 
     private var biometryLockOverlay: some View {
@@ -57,22 +58,16 @@ struct ContentView: View {
                         .multilineTextAlignment(.center)
                 }
 
-                Button {
+                CofrinhoButton(
+                    title: "Desbloquear com \(BiometryService.shared.biometryName)",
+                    systemImage: BiometryService.shared.biometryIconName,
+                    role: .primary,
+                    size: .large,
+                    isFullWidth: false
+                ) {
                     Task {
                         await authViewModel.unlockAndRefreshSessionOnForeground()
                     }
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: BiometryService.shared.biometryIconName)
-                        Text("Desbloquear com \(BiometryService.shared.biometryName)")
-                            .font(.headline)
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 14)
-                    .background(Color.blue)
-                    .clipShape(.rect(cornerRadius: 14))
-                    .shadow(color: Color.blue.opacity(0.3), radius: 8, y: 4)
                 }
                 .padding(.top, 6)
             }

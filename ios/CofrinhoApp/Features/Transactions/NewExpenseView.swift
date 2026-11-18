@@ -409,40 +409,19 @@ public struct NewExpenseView: View {
                         .clipShape(.rect(cornerRadius: 12))
                     }
 
-                    // LINHA 5: Botão de Ação Principal ("+ Adicionar Gasto" / "+ Adicionar Receita")
-                    Button {
-                        let haptic = UIImpactFeedbackGenerator(style: .medium)
-                        haptic.impactOccurred()
-
+                    // LINHA 5: Botão de Ação Principal ("+ Adicionar Gasto" / "+ Adicionar Receita") via CofrinhoButton
+                    CofrinhoButton(
+                        title: viewModel.selectedType == .income ? "Adicionar Receita" : "Adicionar Gasto",
+                        systemImage: "plus",
+                        role: viewModel.selectedType == .income ? .income : .expense,
+                        size: .large,
+                        isLoading: viewModel.isSaving
+                    ) {
                         focusedField = nil
-
                         Task {
                             _ = await viewModel.saveTransaction(token: token)
                         }
-                    } label: {
-                        let buttonColor = viewModel.selectedType == .income
-                            ? Color.green
-                            : Color(red: 0.31, green: 0.27, blue: 0.90)
-                        HStack(spacing: 8) {
-                            Spacer()
-                            if viewModel.isSaving {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 16, weight: .bold))
-                                Text(viewModel.selectedType == .income ? "Adicionar Receita" : "Adicionar Gasto")
-                                    .font(.headline.weight(.bold))
-                            }
-                            Spacer()
-                        }
-                        .frame(height: 50)
-                        .background(buttonColor)
-                        .foregroundStyle(.white)
-                        .clipShape(.rect(cornerRadius: 12))
-                        .shadow(color: buttonColor.opacity(0.35), radius: 8, y: 4)
                     }
-                    .disabled(viewModel.isSaving)
                     .padding(.top, 4)
                 }
                 .padding(20)

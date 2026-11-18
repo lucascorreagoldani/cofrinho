@@ -16,9 +16,15 @@
 - **Navegação Principal & Hub `Início` (5 Abas)**:
   - A barra inferior (`MainTabView`) segue exatamente a ordem: **`Início` (`house.fill`) | `Extrato` (`list.bullet.rectangle.portrait.fill`) | `Lançamento` (`plus.circle.fill`) | `Objetivos` (`target`) | `Perfil` (`person.crop.circle.fill`)**.
   - A aba **`Início`** (`HomeHubView`) reúne:
-    - Botão de destaque **`Novo Lançamento`**, abrindo sheet modal com `NavigationStack` idêntico ao botão `+` do `Extrato`.
-    - Card **`Meu dinheiro`** com saldo disponível (`Receitas - Gastos`), resumo de entradas/saídas e botão **`?`** no canto superior direito que, ao ser clicado, **some permanentemente naquela conta** (voltando apenas ao trocar de conta ou reinstalar o app) e abre um **overlay em tela cheia com fundo em blur** (`.ultraThinMaterial` + `.blur` sobre a `TabView`), tipografia editorial Apple HIG, hierarquia de SF Symbols animados e atalhos interativos diretos para **`RECEITA`** e **`GASTO`**.
-    - Card de gráfico **`Gastos x Receita`** em **`Swift Charts`** (`BarMark`) exibindo os valores atuais consolidados (com alternância `Geral` / `Este Mês`).
+    - Botão de destaque **`Novo Lançamento`** via **`CofrinhoButton`**, abrindo sheet modal com `NavigationStack` idêntico ao botão `+` do `Extrato`.
+    - Card **`Meu dinheiro`** com saldo disponível (`Receitas - Gastos`), resumo de entradas/saídas e botão **`?` permanente** (`HelpNoticeTriggerButton` -> `HelpNoticeCatalog.myMoney`) abrindo o overlay full-screen em blur (`.ultraThinMaterial` + `.blur`) com atalhos diretos para **`RECEITA`** e **`GASTO`**.
+    - Card de gráfico **`Gastos x Receita`** em **`Swift Charts`** (`BarMark`) exibindo os valores atuais consolidados (com alternância `Geral` / `Este Mês`) e botão **`?` permanente**.
+- **Frameworks POO Reutilizáveis (UI & Erros)**:
+  - **Framework de Avisos `?` Permanentes**: `HelpNoticeProtocol`, `HelpNoticeItem`, `HelpNoticeCatalog`, `HelpNoticeTriggerButton`, `HelpSpotlightOverlayView` e `.cofrinhoHelpOverlay(...)` em [View+ErrorAlert.swift](file:///Users/lucas/Documents/Develop/cofrinho/ios/CofrinhoApp/Core/Extensions/View+ErrorAlert.swift). Botões `?` são permanentes em todas as telas para consulta contínua.
+  - **Framework de Botões POO**: `CofrinhoButton`, `CofrinhoChipButton`, `CofrinhoButtonSemanticRole` e `CofrinhoButtonSize`, aplicando cores semânticas, loading, haptics e ergonomia padronizada.
+  - **Framework Universal de Erros**: Toda tela e ViewModel deve capturar erros com `CofrinhoErrorMapper.normalize` / `AppErrorProtocol` e apresentá-los via `.handleAnyAppError(...)` / `.handleAppError(...)`, preservando fallback offline silencioso apenas para `CofrinhoErrorMapper.isConnectivityIssue(...)`.
+- **Foco Automático Temporal no `Extrato`**:
+  - A barra horizontal `dayNavigationBar` utiliza `ScrollViewReader` com foco automático no dia selecionado (`Hoje (dd)`) tanto no `.onAppear` quanto no `.onChange(of: selectableDays)` após o carregamento assíncrono dos dias com lançamentos.
 - **Fluxo de Lançamentos (`Lançamento` / `Novo Lançamento`)**:
   - Permite alternar entre **`Gasto`** (`expense`) e **`Receita`** (`income`) via enum `TransactionType`.
   - Respeitar `defaultTransactionType` das preferências do usuário em **tempo real** (via `.onChange(of: defaultType)` e `applyDefaultType`, sem exigir reinício do app) e ocultar/desativar parcelamento quando o tipo for `.income`.
